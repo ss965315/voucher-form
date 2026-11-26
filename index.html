@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>開券簽呈產生器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@400;700&display=swap">
+<style>
+/* Layout: sticky bar with form switch, form column left, live paper preview right; stacks on phones. */
+:root{
+  --bg:#eef0f3; --panel:#ffffff; --ink:#1d2433; --muted:#5d6678; --line:#d5d9e1;
+  --field:#f7f8fa; --seal:#b3261e; --seal-soft:#f8e7e5; --ok:#1f7a4d; --line-green:#06c755; --line-soft:#e6f8ee;
+  --paper:#ffffff; --paper-ink:#111111; --paper-line:#555555; --paper-shade:#efefef;
+  --p-yellow:#fff4cf; --p-green:#e4f1df; --p-blue:#dde9f5;
+  --ui:"Noto Sans TC",system-ui,"Microsoft JhengHei",sans-serif;
+  --doc:"DFKai-SB","BiauKai","標楷體","Noto Serif TC",serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151922; --panel:#1e2330; --ink:#e6e9f0; --muted:#9aa3b5; --line:#343b4c;
+  --field:#262c3a; --seal:#e0564b; --seal-soft:#3a2222; --ok:#4cc38a; --line-soft:#1b3326; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#151922; --panel:#1e2330; --ink:#e6e9f0; --muted:#9aa3b5; --line:#343b4c;
+  --field:#262c3a; --seal:#e0564b; --seal-soft:#3a2222; --ok:#4cc38a; --line-soft:#1b3326; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:light}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:15px;line-height:1.6}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line);
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.bar-in{max-width:1320px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.stamp{width:34px;height:34px;border:2px solid var(--seal);color:var(--seal);border-radius:6px;display:grid;place-items:center;
+  font-family:var(--doc);font-weight:700;font-size:15px;transform:rotate(-6deg)}
+.brand h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.02em}
+.tabs{display:flex;gap:4px;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:3px;margin-right:auto}
+.tabs a{text-decoration:none;color:var(--muted);padding:5px 14px;border-radius:7px;font-size:14px;font-weight:500}
+.tabs a[aria-current="page"]{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 14px}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,.tabs a:focus-visible{outline:2px solid var(--seal);outline-offset:1px}
+button.primary{background:var(--seal);border-color:var(--seal);color:#fff;font-weight:500}
+button.primary:hover{filter:brightness(1.08)}
+button:disabled{opacity:.55;cursor:default}
+.toast{font-size:13px;color:var(--ok)}
+.toast.err{color:var(--seal)}
+main{max-width:1320px;margin:0 auto;display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);gap:24px;align-items:start;
+  padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+@media (max-width:960px){main{grid-template-columns:minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.card h2{font-size:14px;margin:0;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.card h2 b{color:var(--seal);font-weight:700;margin-right:6px}
+.ai{border-color:var(--seal);background:linear-gradient(var(--seal-soft),var(--panel) 70%)}
+.linecard{border-color:var(--line-green);background:linear-gradient(var(--line-soft),var(--panel) 70%)}
+.linecard h2 b{color:var(--line-green)}
+.linemsg{font-family:var(--ui);white-space:pre-wrap;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;font-size:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+@media (max-width:440px){.grid2,.grid3{grid-template-columns:1fr}}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+input[type=text],input[type=number],input[type=date],textarea,select{font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);
+  border-radius:8px;padding:7px 10px;width:100%;min-width:0}
+textarea{resize:vertical;line-height:1.55}
+.checks{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:14px}
+.checks label{display:flex;gap:6px;align-items:center;color:var(--ink)}
+.lbl{font-size:13px;color:var(--muted)}
+.hint{font-size:12px;color:var(--muted);margin:0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dl{display:flex;gap:6px;align-items:center}
+.dl button{padding:4px 10px}
+.example{font-size:12px;background:var(--seal-soft);color:var(--seal);border-radius:999px;padding:2px 10px}
+.aiout{font-size:13px;color:var(--muted);white-space:pre-wrap;margin:0}
+details.card summary{cursor:pointer;font-size:14px;color:var(--muted);font-weight:700;letter-spacing:.06em}
+.paperwrap{overflow-x:auto;min-width:0;position:sticky;top:76px}
+@media (max-width:960px){.paperwrap{position:static}}
+.paper{background:var(--paper);color:var(--paper-ink);width:100%;min-width:640px;max-width:820px;margin:0 auto;padding:40px 36px;
+  font-family:var(--doc);font-size:15px;line-height:1.55;box-shadow:0 1px 3px rgba(0,0,0,.12),0 8px 28px rgba(0,0,0,.08);border-radius:2px}
+.paper h3{text-align:center;font-size:24px;margin:0 0 10px;letter-spacing:.08em}
+.paper .note{font-size:12px;margin:0}
+.paper table{width:100%;border-collapse:collapse;table-layout:fixed}
+.paper td{border:1px solid var(--paper-line);padding:5px 8px;vertical-align:middle;word-break:break-word}
+.paper td.k{text-align:center;width:16.6%}
+.paper tr.shade td{background:var(--paper-shade)}
+.paper td.top{vertical-align:top}
+.paper .lines div{min-height:1.55em}
+.paper .gm{margin:14px 0 6px;font-weight:700}
+.paper .gm p{margin:0;font-weight:400}
+.paper .sig td{height:84px}
+.paper .sig th{border:1px solid var(--paper-line);background:var(--paper-shade);font-weight:700;padding:4px}
+.paper hr{border:0;border-top:2px solid var(--paper-ink);margin:22px 0 4px}
+.paper .kh{font-weight:700;margin:8px 0}
+.paper .kh-t td{padding:8px 12px}
+.paper .foot{font-weight:700;margin-top:16px;font-size:14px}
+.paper .empty{color:#aaa}
+.paper.capturing{box-shadow:none;border-radius:0}
+.tablewrap{overflow-x:auto;min-width:0}
+table.inbox{width:100%;border-collapse:collapse;font-size:14px;min-width:820px}
+table.inbox th{text-align:left;font-size:12px;color:var(--muted);font-weight:500;border-bottom:1px solid var(--line);padding:6px 8px;letter-spacing:.04em}
+table.inbox td{border-bottom:1px solid var(--line);padding:8px;vertical-align:top}
+table.inbox td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+table.inbox tr.done td{opacity:.55}
+.badge{display:inline-block;font-size:12px;border-radius:999px;padding:1px 9px;white-space:nowrap}
+.badge.mj{background:var(--seal-soft);color:var(--seal)}
+.badge.dc{background:var(--line-soft);color:var(--ok)}
+.badge.new{background:var(--seal);color:#fff}
+.badge.ok{background:var(--field);color:var(--muted);border:1px solid var(--line)}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.acts a,.acts button{font-size:13px;padding:4px 10px}
+.acts a{color:var(--ink);border:1px solid var(--line);border-radius:8px;text-decoration:none}
+/* DC sheet */
+.dc{font-family:var(--ui);font-size:13px}
+.dc .dchead{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.dc .dchead h3{margin:0;font-size:20px}
+.dc .sec{font-weight:700;font-size:15px;border:1px solid var(--paper-line);border-bottom:0;padding:3px 8px;background:var(--paper)}
+.dc .sec small{font-weight:400;font-size:11px;margin-left:8px}
+.dc .y{background:var(--p-yellow)}
+.dc .g{background:var(--p-green)}
+.dc .b{background:var(--p-blue)}
+.dc .box{border:1px solid var(--paper-line);padding:6px 8px;white-space:pre-wrap;min-height:2.2em}
+.dc td{white-space:pre-wrap;font-size:13px}
+.dc .plain{margin:8px 0 0;font-size:13px}
+.dc .signs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 8px;margin-top:14px;font-size:13px}
+.dc .fine{font-size:11px;margin-top:6px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:20;padding:16px}
+.modal .card{max-width:420px;width:100%}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="bar-in">
+    <div class="brand"><div class="stamp">券</div><h1>開券簽呈產生器</h1></div>
+    <nav class="tabs" aria-label="選擇表單">
+      <a href="#meijia" id="tabM">美加 貴賓券申請書</a>
+      <a href="#dc" id="tabD">康博 事業處簽呈</a>
+    </nav>
+    <span id="toast" class="toast" role="status"></span>
+    <span class="formActions row">
+      <button id="copyBtn" type="button">複製簽呈文字</button>
+      <button id="dlBtn" type="button">下載 Word 檔</button>
+      <button id="pdfBtn" type="button">下載 PDF</button>
+      <button id="submitBtn" class="primary" type="button" hidden>送出給承辦人</button>
+    </span>
+  </div>
+</div>
+
+<!-- ================= 美加 ================= -->
+<main id="viewM">
+  <div class="col">
+    <section class="card ai aiCard">
+      <h2><b>AI</b>一句話描述活動，幫你填好整張</h2>
+      <textarea id="aiBrief" rows="4" placeholder="例：美加X高爾夫嘉年華，發1000張好禮二選一 990 卷（A.12倍素顏光療 原價3000 / B.全方位護膚 原價3500），來源線下通路活動，大使信富家異業合作，期限到6/30"></textarea>
+      <div class="row">
+        <button id="aiGo" class="primary" type="button">AI 擬稿</button>
+        <button id="aiStop" type="button" hidden>停止</button>
+        <p class="hint">AI 會照你們過去申請書的寫法填，送出前請再看過一次。</p>
+      </div>
+      <p id="aiOut" class="aiout" hidden></p>
+    </section>
+
+    <section class="card">
+      <div class="row" style="justify-content:space-between"><h2><b>1</b>基本資料</h2><span id="exTag" class="example" hidden>目前是範例內容</span><button id="clearBtn" type="button">清空重填</button></div>
+      <div class="grid3">
+        <label class="f">申請品牌<select id="brand"></select></label>
+        <label class="f">申請單位<select id="unitSel"></select><input id="unitOther" type="text" placeholder="輸入申請單位" hidden></label>
+        <label class="f">申請日期<input id="date" type="date"></label>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl">券種</span>
+        <div class="checks">
+          <label><input type="radio" name="m_vType" value="three">好禮三選一</label>
+          <label><input type="radio" name="m_vType" value="two990">好禮二選一 $990</label>
+          <label><input type="radio" name="m_vType" value="custom">其他（自訂內容）</label>
+        </div>
+        <p class="hint" id="vTypeHint"></p>
+      </div>
+      <label class="f">申請主旨<input id="subject" type="text" placeholder="活動名稱＋好禮內容_申請開卷"></label>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <span class="lbl">樣式</span>
+        <div class="checks">
+          <label><input id="stPhysical" type="checkbox">實體券</label>
+          <label><input id="stLine" type="checkbox">LINE@優惠券</label>
+          <label><input id="stOther" type="checkbox">其他</label>
+          <input id="styleOther" type="text" placeholder="其他樣式" style="flex:1;min-width:120px">
+        </div>
+      </div>
+      <label class="f">數量（張）<input id="qty" type="number" min="0" inputmode="numeric"></label>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <span class="lbl">可用分院（不勾分院＝全台美加分院）</span>
+        <div class="checks" id="branchPick"></div>
+      </div>
+      <label class="f">申請人簽名<input id="applicant" type="text" list="applicantList"></label>
+    </section>
+
+    <section class="card">
+      <h2><b>2</b>申請目的與預估目標</h2>
+      <textarea id="purpose" rows="3"></textarea>
+    </section>
+
+    <section class="card">
+      <h2><b>3</b>使用規則</h2>
+      <label class="f">固定規則（每行一條）<textarea id="rules" rows="6"></textarea></label>
+      <button id="resetRules" type="button" style="align-self:flex-start">還原成標準 6 條</button>
+      <div class="grid2">
+        <label class="f">商品提示：來源<input id="source" type="text" placeholder="例：線下通路活動"></label>
+        <label class="f">商品提示：大使<input id="ambassador" type="text" placeholder="例：信富家異業合作"></label>
+      </div>
+      <label class="f">其他附註（每行一條，選填）<textarea id="extra" rows="2" placeholder="例：HC編號TW02809196/林朝陽"></textarea></label>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span class="lbl">期限（可加多個，會自動轉成民國年）</span>
+        <div id="deadlines" style="display:flex;flex-direction:column;gap:6px"></div>
+        <button id="addDeadline" type="button" style="align-self:flex-start">＋ 再加一個期限</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><b>4</b>品牌總經理決議（可先勾）</h2>
+      <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl">1.申請是否通過?</span>
+        <div class="checks">
+          <label><input type="radio" name="m_gmPass" value="pass">通過</label>
+          <label><input type="radio" name="m_gmPass" value="fail">未通過，須修正</label>
+          <label><input type="radio" name="m_gmPass" value="">不勾</label>
+        </div></div>
+      <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl">2.決議本次使用的券別類型</span>
+        <div class="checks">
+          <label><input type="radio" name="m_gmType" value="generic">通用貴賓券</label>
+          <label><input type="radio" name="m_gmType" value="custom">客製貴賓券</label>
+          <label><input type="radio" name="m_gmType" value="">不勾</label>
+        </div></div>
+    </section>
+
+    <details class="card">
+      <summary>凱惠系統設定資料（總部填寫，可先代填）</summary>
+      <label class="f">券別名稱<input id="khName" type="text" placeholder="留空就不填"></label>
+      <label class="f">券別內容<input id="khContent" type="text" placeholder="例：好禮二選一(A.12倍素顏光療一堂原價3000 B.全方位護膚一堂原價3500)"></label>
+      <label class="f">券別序號<textarea id="khSerial" rows="2" placeholder="例：MSF32001-MSF33000"></textarea></label>
+      <label class="row" style="font-size:13px;color:var(--muted)"><input id="khAuto" type="checkbox">總張數與有效期限照上面自動帶入</label>
+    </details>
+
+    <section class="card linecard">
+      <h2><b>LINE</b>開券後通知訊息</h2>
+      <p class="hint">拿到券號後填進上面「凱惠系統設定資料」的券別序號，這裡會自動帶入。</p>
+      <pre id="mLine" class="linemsg"></pre>
+      <button id="mLineCopy" type="button" style="align-self:flex-start">複製 LINE 訊息</button>
+    </section>
+  </div>
+  <div class="paperwrap"><article class="paper" id="paper" aria-label="美加申請書預覽"></article></div>
+</main>
+
+<!-- ================= 康博 ================= -->
+<main id="viewD" hidden>
+  <div class="col">
+    <section class="card ai aiCard">
+      <h2><b>AI</b>一句話描述活動，幫你寫主旨、原因與說明</h2>
+      <textarea id="dAiBrief" rows="4" placeholder="例：9/16-9/17 台中霧峰高爾夫俱樂部會員聯誼賽擺攤，發338張保肝針1堂體驗券給現場貴賓，期限到年底"></textarea>
+      <div class="row">
+        <button id="dAiGo" class="primary" type="button">AI 擬稿</button>
+        <button id="dAiStop" type="button" hidden>停止</button>
+        <p class="hint">寫法比照你們過去的事業處簽呈。</p>
+      </div>
+      <p id="dAiOut" class="aiout" hidden></p>
+    </section>
+
+    <section class="card">
+      <div class="row" style="justify-content:space-between"><h2><b>1</b>簽呈資訊</h2><span id="dExTag" class="example" hidden>目前是範例內容</span><button id="dClearBtn" type="button">清空重填</button></div>
+      <div class="grid2">
+        <label class="f">簽呈編號<input id="d_no" type="text" inputmode="numeric"></label>
+        <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl">版本</span>
+          <div class="checks"><label><input type="radio" name="d_conf" id="d_confN" value="一般">一般</label><label><input type="radio" name="d_conf" id="d_confC" value="機密">機密</label></div></div>
+      </div>
+      <button id="d_noGen" type="button" style="align-self:flex-start">用今天日期產生編號</button>
+      <label class="f">一、主旨<textarea id="d_subject" rows="2"></textarea></label>
+      <label class="f">二、原因與目的<textarea id="d_reason" rows="3"></textarea></label>
+      <label class="f">三、詳細說明<textarea id="d_detail" rows="3"></textarea></label>
+    </section>
+
+    <section class="card">
+      <h2><b>2</b>申請內容</h2>
+      <div class="grid3">
+        <label class="f">申請單位<input id="d_unit" type="text" list="unitList"></label>
+        <label class="f">申請人<input id="d_person" type="text"></label>
+        <label class="f">數量（張）<input id="d_qty" type="number" min="0" inputmode="numeric"></label>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl">療程券類型</span>
+        <div class="checks"><label><input type="radio" name="d_kind" id="d_kindR" value="regular">常規</label><label><input type="radio" name="d_kind" id="d_kindP" value="project">專案</label></div></div>
+      <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl">券種</span>
+        <div class="checks">
+          <label><input type="radio" name="d_vType" value="friend">好友分享券（全方位寶肝課程1堂）</label>
+          <label><input type="radio" name="d_vType" value="trio">三項好禮券（價值4,500）</label>
+          <label><input type="radio" name="d_vType" value="custom">其他</label>
+        </div>
+        <p class="hint" id="dVTypeHint"></p>
+      </div>
+      <label class="f">常規內容<input id="d_regular" type="text" list="dcRegularList" placeholder="例：保肝針*1堂"></label>
+      <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl">樣式</span>
+        <div class="checks">
+          <label><input id="d_stPhysical" type="checkbox">實體券</label>
+          <label><input id="d_stLine" type="checkbox">LINE@優惠券</label>
+          <label><input id="d_stOther" type="checkbox">其他</label>
+          <input id="d_styleOther" type="text" placeholder="其他樣式" style="flex:1;min-width:120px">
+        </div></div>
+      <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl">可用分院（不勾分院＝全區）</span>
+        <div class="checks" id="dBranchPick"></div></div>
+    </section>
+
+    <details class="card" id="dProj">
+      <summary>專案內容（常規療程券不需填寫）</summary>
+      <label class="f">專案名稱<input id="d_pName" type="text"></label>
+      <label class="f">專案販售價格（專案價／VIP價加總／原價加總）<input id="d_pPrice" type="text" placeholder="例：0／990／1500"></label>
+      <label class="f">專案項目（每行一項，例：(1)保肝針-基因營養針($1500)（990／1500）*1）<textarea id="d_pItems" rows="3"></textarea></label>
+      <label class="f">專案使用規則<textarea id="d_pRules" rows="2"></textarea></label>
+      <div class="grid2">
+        <label class="f">專案開卡<input id="d_pOpen" type="text"></label>
+        <label class="f">通路獎金(HC/大使)<input id="d_pBonus" type="text"></label>
+        <label class="f">醫師協助成交(項目)<input id="d_pDoctor" type="text"></label>
+        <label class="f">醫收開立<input id="d_pMedical" type="text"></label>
+        <label class="f">財報分類<input id="d_pFinance" type="text"></label>
+        <label class="f">專案DM<input id="d_pDM" type="text"></label>
+      </div>
+      <label class="f">其他備註(特殊請款/特殊耗材)<input id="d_pOther" type="text" placeholder="無則免填"></label>
+    </details>
+
+    <section class="card">
+      <h2><b>3</b>療程券資訊</h2>
+      <div class="grid2">
+        <label class="f">療程券期限<input id="d_expiry" type="date"></label>
+        <label class="f">療程券單位<input id="d_cUnit" type="text"></label>
+      </div>
+      <label class="f">療程券貴賓對象<input id="d_cTarget" type="text"></label>
+      <label class="f">使用目的<textarea id="d_cPurpose" rows="2"></textarea></label>
+      <div class="grid2">
+        <label class="f">擬辦作業完成期限<input id="d_due" type="date"></label>
+        <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl">是否須用印</span>
+          <div class="checks"><label><input type="radio" name="d_seal" id="d_sealN" value="no">否</label><label><input type="radio" name="d_seal" id="d_sealY" value="yes">是</label></div></div>
+      </div>
+      <label class="f">附件一<input id="d_att1" type="text" placeholder="例：DM、對話截圖、療程套組內容"></label>
+      <div class="grid2">
+        <label class="f">附件二<input id="d_att2" type="text"></label>
+        <label class="f">附件三<input id="d_att3" type="text"></label>
+      </div>
+      <label class="f">簽名欄申請人<input id="d_signer" type="text" list="applicantList"></label>
+    </section>
+
+    <details class="card">
+      <summary>小總部填寫（凱惠系統設定）</summary>
+      <label class="f">券別序號<input id="d_serial" type="text" placeholder="例：DEE04891-DEE04990"></label>
+      <label class="f">券別名稱（LINE 通知用）<input id="d_vName" type="text" placeholder="留空會用療程券單位"></label>
+      <label class="f">券別內容（LINE 通知用）<input id="d_vContent" type="text" placeholder="留空會用常規內容"></label>
+    </details>
+
+    <section class="card linecard">
+      <h2><b>LINE</b>開券後通知訊息</h2>
+      <p class="hint">拿到券號後填進「小總部填寫」的券別序號，這裡會自動帶入。</p>
+      <pre id="dLine" class="linemsg"></pre>
+      <button id="dLineCopy" type="button" style="align-self:flex-start">複製 LINE 訊息</button>
+    </section>
+  </div>
+  <div class="paperwrap"><article class="paper dc" id="dPaper" aria-label="康博簽呈預覽"></article></div>
+</main>
+
+<!-- 送出確認 -->
+<div class="modal" id="submitModal" hidden>
+  <section class="card" role="dialog" aria-labelledby="smTitle">
+    <h2 id="smTitle"><b>送出</b>給承辦人</h2>
+    <p class="hint">會把這份申請的 PDF 和填寫內容送給承辦人。</p>
+    <label class="f">你的名字<input id="smName" type="text" autocomplete="name"></label>
+    <label class="f">備註（選填）<textarea id="smNote" rows="2"></textarea></label>
+    <div class="row"><button id="smSend" class="primary" type="button">確認送出</button><button id="smCancel" type="button">取消</button></div>
+    <p id="smStatus" class="aiout"></p>
+  </section>
+</div>
+
+<datalist id="unitList"><option value="信富家"><option value="數創部"><option value="好的行銷"></datalist>
+<datalist id="branchList"><option value="全台美加分院"><option value="全台DC分院"><option value="全台美加、DC分院"></datalist>
+<datalist id="applicantList"></datalist>
+<datalist id="dcRegularList"><option value="好友分享券-全方位寶肝課程*1堂"><option value="DC頂級3合1券(寶肝活力點滴課程1堂＋身體老化指數檢測1堂＋高階血管風險檢測1堂)"><option value="保肝針*1堂"></datalist>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// ================= shared helpers =================
+const $ = id => document.getElementById(id);
+const today = new Date();
+const iso = d => { const z=n=>String(n).padStart(2,"0"); return d.getFullYear()+"-"+z(d.getMonth()+1)+"-"+z(d.getDate()); };
+const dot = v => v ? v.replace(/-/g,".") : "";
+const slash = v => v ? v.replace(/-/g,"/") : "";
+const roc = v => { if(!v) return ""; const [y,m,d]=v.split("-"); return (Number(y)-1911)+"."+m+"."+d; };
+function load(key, fallback){ try{ const v=JSON.parse(localStorage.getItem(key)||"null"); return v? Object.assign(structuredClone(fallback), v) : structuredClone(fallback); }catch(e){ return structuredClone(fallback); } }
+function store(key, v){ try{ localStorage.setItem(key, JSON.stringify(v)); }catch(e){} }
+function toast(msg, err){ const t=$("toast"); t.textContent=msg; t.className="toast"+(err?" err":""); clearTimeout(toast._t); toast._t=setTimeout(()=>t.textContent="",5000); }
+function h(tag, attrs, ...kids){ const e=document.createElement(tag); for(const k in (attrs||{})) e.setAttribute(k, attrs[k]); kids.flat().forEach(c=>{ if(c!=null) e.append(c instanceof Node?c:String(c)); }); return e; }
+async function copyText(txt, okMsg){
+  try{ await navigator.clipboard.writeText(txt); toast(okMsg); }
+  catch(e){ const ta=h("textarea"); ta.value=txt; document.body.append(ta); ta.select(); try{ document.execCommand("copy"); toast(okMsg); }catch(_){ toast("瀏覽器不允許複製，請手動選取文字",true); } ta.remove(); }
+}
+// ===== 設定：把 Google Apps Script 部署後的網址貼在這裡 =====
+const CONFIG = {
+  scriptUrl: "",      // 例："https://script.google.com/macros/s/XXXX/exec"
+  enableAI: true      // Apps Script 有設定 ANTHROPIC_API_KEY 才會真的啟用
+};
+async function callScript(payload, signal){
+  const res = await fetch(CONFIG.scriptUrl, {method:"POST", body:JSON.stringify(payload), headers:{"Content-Type":"text/plain;charset=utf-8"}, signal});
+  if(!res.ok) throw {code:"upstream_error", message:"HTTP "+res.status};
+  const j = await res.json();
+  if(!j.ok) throw {code:j.code||"upstream_error", message:j.error||""};
+  return j;
+}
+// AI 擬稿：透過 Apps Script 代呼叫 Claude（金鑰只放在 Apps Script，不會出現在網頁上）
+const sample = (CONFIG.scriptUrl && CONFIG.enableAI) ? {
+  json: async (prompt, {signal}={}) => {
+    const j = await callScript({action:"ai", prompt}, signal);
+    const t = String(j.text||"");
+    try { return JSON.parse(t); } catch(_) {}
+    const m = t.match(/[\[{][\s\S]*[\]}]/); if(m){ try { return JSON.parse(m[0]); } catch(_){} }
+    throw {code:"invalid_json"};
+  }
+} : null;
+if(!sample) document.querySelectorAll(".aiCard").forEach(c=>c.hidden=true);
+async function saveFile(name, blob){
+  const url = URL.createObjectURL(blob);
+  const a = h("a",{href:url, download:name}); document.body.append(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 10000);
+  toast("已下載 "+name);
+}
+const safeName = s => s.replace(/[\\/:*?"<>|\n]/g,"").slice(0,60);
+const AI_ERR = {cancelled:"已停止。",not_granted:"你沒有允許這個頁面使用 AI，可以直接手動填表。",sampling_disabled:"這個帳號不能使用 AI，請直接手動填表。",rate_limited:"AI 使用太頻繁，請稍後再試。",invalid_json:"AI 回覆格式不對，請再按一次「AI 擬稿」。",refused:"AI 無法處理這段描述，請換個說法。"};
+function runAI({go, stop, out, briefEl, emptyMsg, prompt, apply}){
+  let ctl=null, locked=false;
+  $(stop).onclick=()=>ctl?.abort();
+  $(go).onclick=async()=>{
+    const brief=$(briefEl).value.trim(); const o=$(out); o.hidden=false;
+    if(!brief){ o.textContent=emptyMsg; return; }
+    if(!sample){ o.textContent="這個檢視不能使用 AI，請直接填表。"; return; }
+    ctl=new AbortController(); $(go).disabled=true; $(stop).hidden=false; o.textContent="AI 擬稿中…";
+    try{
+      const r = await sample.json(prompt(brief), {signal:ctl.signal, onText:()=>{ o.textContent="AI 擬稿中…（正在寫）"; }});
+      if(!r || typeof r!=="object") throw {code:"invalid_json"};
+      const check = apply(r);
+      o.textContent = "已填入表單。" + (check ? "\n請確認：" + check : "");
+    }catch(e){
+      o.textContent = AI_ERR[e?.code] || "AI 暫時無法回應，請再試一次。";
+      if(e?.code==="not_granted"||e?.code==="sampling_disabled") locked=true;
+    }finally{ $(go).disabled=locked; $(stop).hidden=true; }
+  };
+}
+const str = v => typeof v==="string" ? v.trim() : (typeof v==="number" ? String(v) : "");
+const isoOk = v => /^\d{4}-\d{2}-\d{2}$/.test(v);
+function bindFields(state, ids, prefix, onChange){
+  ids.forEach(f=>{ const el=$(prefix+f); el.addEventListener(el.type==="checkbox"?"change":"input", ()=>{ state()[f] = el.type==="checkbox"? el.checked : el.value; onChange(); }); });
+}
+function fillFields(state, ids, prefix){ ids.forEach(f=>{ const el=$(prefix+f); if(el.type==="checkbox") el.checked=!!state[f]; else el.value=state[f]??""; }); }
+function armClear(btnId, doClear){
+  let armed=false; const b=$(btnId);
+  b.onclick=()=>{ if(!armed){ armed=true; b.textContent="再按一次確認清空"; setTimeout(()=>{armed=false;b.textContent="清空重填";},3000); return; }
+    armed=false; b.textContent="清空重填"; doClear(); };
+}
+
+// ================= 美加 貴賓券申請書 =================
+const STD_RULES = ["單一療程限使用一張票卷","票卷須於有效期限內使用，逾期無效","消費金額以VIP價計算，不得找零","優惠不得併行，手術優惠套組不得使用","不限本人使用，可轉讓，遺失數不補發","可於任一分店使用，無分店限制"];
+const M_EXAMPLE = {
+  brand:"美加小總部", unit:"信富家", date:iso(today), applicant:"",
+  subject:"美加X高爾夫嘉年華好禮二選一_申請開卷", stPhysical:true, stLine:false, stOther:false, styleOther:"",
+  qty:"1000", branches:"全台美加分院",
+  purpose:"針對品牌曝光率及新客來店數發放好禮二選一$990卷，提升新客到店率",
+  rules:STD_RULES.join("\n"), source:"線下通路活動", ambassador:"信富家異業合作", extra:"",
+  deadlines:["2027-06-30"],
+  khName:"美加X高爾夫嘉年華990好禮二選一", khContent:"好禮二選一(A.12倍素顏光療一堂原價3000 B.全方位護膚一堂原價3500)", khSerial:"", khAuto:true,
+  gmPass:"", gmType:"", vType:"two990",
+  _example:true
+};
+const M_BLANK = {brand:"美加",unit:"",date:iso(today),applicant:"",subject:"",stPhysical:true,stLine:false,stOther:false,styleOther:"",qty:"",branches:"全台美加分院",
+  purpose:"",rules:STD_RULES.join("\n"),source:"",ambassador:"",extra:"",deadlines:[""],khName:"",khContent:"",khSerial:"",khAuto:true,gmPass:"",gmType:"",vType:"custom",_example:false};
+// 常態券種
+const VTYPES = {
+  three:  {content:"好禮三選一(A.煥膚光療 B.保濕潤澤導入 C.針劑(美白/護肝擇一))", subject:"好禮三選一", khName:"好禮三選一", purpose:"好禮三選一"},
+  two990: {content:"好禮二選一(A.12倍素顏光療一堂原價3000 B.全方位護膚一堂原價3500)", subject:"好禮二選一", khName:"990好禮二選一", purpose:"好禮二選一$990"}
+};
+const VT_RE = /(990)?好禮[二三]選一(\$990)?/g;
+function applyVType(t){
+  S.vType=t; const v=VTYPES[t]; if(!v) return;
+  S.khContent=v.content;
+  ["subject","khName","purpose"].forEach(k=>{ if(S[k]) S[k]=S[k].replace(VT_RE, v[k]); });
+}
+// 可用分院 → 分店限制那條規則
+const ANY_BRANCH_RULE = "可於任一分店使用，無分店限制";
+const BRANCH_RULE_RE = /^(可於任一分店使用，無分店限制|限.+使用，其他分院不得使用)$/;
+function branchRule(){
+  const b=(S.branches||"").trim();
+  if(!b || b.startsWith("全")) return ANY_BRANCH_RULE;
+  return "限"+b+(/分院$/.test(b)?"":"分院")+"使用，其他分院不得使用";
+}
+const MJ_BRANCHES = ["台中向上","台中崇德","台北仁愛","桃園中正","新竹光明","高雄巨蛋"];
+function parseBranches(s){
+  s=s||""; if(!s || s.startsWith("全")) return [];
+  let sel=MJ_BRANCHES.filter(b=>s.includes(b));
+  if(!sel.length){ const cities=["台中","台北","桃園","新竹","高雄"].filter(c=>s.includes(c)); sel=MJ_BRANCHES.filter(b=>cities.some(c=>b.startsWith(c))); }
+  return sel;
+}
+function setBranches(sel){
+  S.branchSel = MJ_BRANCHES.filter(b=>sel.includes(b));
+  S.branches = S.branchSel.length ? S.branchSel.join("、") : "全台美加分院";
+  syncBranchRule();
+}
+function buildBranchPick(){
+  const box=$("branchPick"); box.replaceChildren();
+  const sel = S.branchSel || parseBranches(S.branches);
+  const all = h("input",{type:"checkbox",id:"br_all"}); all.checked=!sel.length;
+  all.addEventListener("change",()=>{ setBranches([]); buildBranchPick(); S._example=false; mSave(); mRender(); });
+  box.append(h("label",null,all,"全區"));
+  MJ_BRANCHES.forEach((b,i)=>{
+    const cb=h("input",{type:"checkbox",id:"br_"+i}); cb.checked=sel.includes(b);
+    cb.addEventListener("change",()=>{ const cur=new Set(S.branchSel||[]); cb.checked?cur.add(b):cur.delete(b); setBranches([...cur]); buildBranchPick(); S._example=false; mSave(); mRender(); });
+    box.append(h("label",null,cb,b));
+  });
+}
+function syncBranchRule(){
+  const want=branchRule(); let found=false;
+  const lines=S.rules.split("\n").map(l=>{ if(BRANCH_RULE_RE.test(l.trim())){ found=true; return want; } return l; });
+  if(!found) lines.push(want);
+  S.rules=lines.join("\n"); $("rules").value=S.rules;
+}
+function gmMarks(){ const b=on=>on?"■":"□"; return [b(S.gmPass==="pass"), b(S.gmPass==="fail"), b(S.gmType==="generic"), b(S.gmType==="custom")]; }
+// 申請品牌 → 可選的申請單位
+const BRAND_UNITS = {
+  "美加":["台中向上","台北仁愛","桃園中正","新竹光明","台中崇德","高雄巨蛋"],
+  "美加小總部":["好的行銷","信富家","美加小總部"],
+  "康博小總部":["康博小總部"],
+  "總部":["公共事務部","數位部"],
+  "泰晶殿":["泰晶殿"],
+  "HC":["HC"]
+};
+const BRANDS = Object.keys(BRAND_UNITS);
+const ALL_UNITS = Object.values(BRAND_UNITS).flat();
+const brandOf = unit => BRANDS.find(b=>BRAND_UNITS[b].includes(unit));
+(function buildBrands(){ const b=$("brand"); BRANDS.forEach(x=>b.append(h("option",{value:x},x))); })();
+function buildUnits(){
+  const u=$("unitSel"); u.replaceChildren();
+  const list = BRAND_UNITS[S.brand] || [];
+  if(list.length>1) u.append(h("option",{value:""},"請選擇"));
+  list.forEach(x=>u.append(h("option",{value:x},x)));
+  u.append(h("option",{value:"__other"},"其他（自行輸入）"));
+}
+function fillUnit(){
+  // a unit that belongs to another brand moves the brand with it
+  if(S.unit && brandOf(S.unit) && !(BRAND_UNITS[S.brand]||[]).includes(S.unit)) S.brand = brandOf(S.unit);
+  if(!BRAND_UNITS[S.brand]) S.brand = BRANDS[0];
+  $("brand").value = S.brand;
+  buildUnits();
+  const list = BRAND_UNITS[S.brand];
+  if(!S.unit && list.length===1) S.unit = list[0];
+  const known = list.includes(S.unit);
+  $("unitSel").value = known ? S.unit : (S.unit ? "__other" : "");
+  $("unitOther").hidden = known || !S.unit; $("unitOther").value = known ? "" : (S.unit||"");
+}
+$("brand").addEventListener("change",()=>{
+  S.brand=$("brand").value;
+  const list=BRAND_UNITS[S.brand];
+  if(!list.includes(S.unit)) S.unit = list.length===1 ? list[0] : "";
+  fillUnit(); S._example=false; mSave(); mRender();
+});
+$("unitSel").addEventListener("change",()=>{
+  const v=$("unitSel").value;
+  if(v==="__other"){ $("unitOther").hidden=false; S.unit=$("unitOther").value; $("unitOther").focus(); }
+  else { $("unitOther").hidden=true; S.unit=v; }
+  S._example=false; mSave(); mRender();
+});
+$("unitOther").addEventListener("input",()=>{ S.unit=$("unitOther").value; S._example=false; mSave(); mRender(); });
+const M_FIELDS = ["date","applicant","subject","styleOther","qty","purpose","rules","source","ambassador","extra","khName","khContent","khSerial","stPhysical","stLine","stOther","khAuto"];
+let S = load("voucher-draft", M_EXAMPLE);
+const mSave = ()=>store("voucher-draft", S);
+
+function ruleLines(){
+  const L = S.rules.split("\n").map(s=>s.trim()).filter(Boolean);
+  if (S.source || S.ambassador) L.push("商品提示:來源:"+(S.source||"")+"，大使:"+(S.ambassador||""));
+  S.extra.split("\n").map(s=>s.trim()).filter(Boolean).forEach(x=>L.push(x));
+  L.push("期限:"+S.deadlines.filter(Boolean).map(roc).join("/"));
+  return L;
+}
+function styleText(st){
+  const b = on => on ? "■" : "□";
+  return b(st.stPhysical)+"實體券 "+b(st.stLine)+"LINE@優惠券 "+b(st.stOther)+"其他"+(st.stOther && st.styleOther ? "："+st.styleOther : "________________");
+}
+function khRows(){
+  return [["券別名稱",S.khName],["總張數",S.khAuto&&S.qty?S.qty+"張":""],["券別內容",S.khContent],["券別序號",S.khSerial],["有效期限",S.khAuto?S.deadlines.filter(Boolean).map(dot).join("/"):""]];
+}
+function mLineText(){
+  return ["券別名稱："+(S.khName||S.subject.replace(/_申請開卷$/,"")),
+    "券別內容："+(S.khContent||""),
+    "券號："+(S.khSerial||"（尚未取得）").replace(/\s*-\s*/,"~"),
+    "數量："+(S.qty||"")+"張",
+    "期限："+S.deadlines.filter(Boolean).map(slash).join("、")].join("\n");
+}
+const val = v => v ? v : h("span",{class:"empty"},"　");
+const linesEl = arr => h("div",{class:"lines"}, arr.map(x=>h("div",null,x)));
+function mRender(){
+  const p = $("paper"); p.replaceChildren();
+  p.append(h("h3",null,"貴賓券申請書"), h("p",{class:"note"},"*以下由申請人填寫"));
+  const t = h("table");
+  t.append(
+    h("tr",null,h("td",{class:"k"},"申請品牌"),h("td",null,val(S.brand)),h("td",{class:"k"},"申請單位"),h("td",{style:"text-align:center"},val(S.unit)),h("td",{class:"k"},"申請日期"),h("td",{style:"text-align:center"},val(dot(S.date)))),
+    h("tr",{class:"shade"},h("td",{class:"k"},"申請主旨"),h("td",{colspan:5},val(S.subject))),
+    h("tr",null,h("td",{class:"k"},"樣式"),h("td",{colspan:5},styleText(S))),
+    h("tr",{class:"shade"},h("td",{class:"k",style:"height:56px"},"數量"),h("td",{style:"text-align:center"},(S.qty||"　　")+" 張"),h("td",{class:"k"},"可用分院",h("br"),"(美加/DC)"),h("td",{colspan:3},val(S.branches))),
+    h("tr",null,h("td",{class:"k",style:"height:80px"},"申請目的",h("br"),"與預估目標",h("br"),"(請詳述)"),h("td",{colspan:5,class:"top"},linesEl(S.purpose.split("\n")))),
+    h("tr",{class:"shade"},h("td",{class:"k"},"使用規則",h("br"),"(請詳述)"),h("td",{colspan:5,class:"top"},linesEl(ruleLines()))),
+    h("tr",null,h("td",{class:"k"},"申請人簽名"),h("td",{colspan:5},val(S.applicant)))
+  );
+  p.append(t);
+  const g=gmMarks();
+  p.append(h("div",{class:"gm"},"以下由品牌總經理填寫",h("p",null,"1.申請是否通過?　"+g[0]+" 通過　"+g[1]+"未通過，須修正"),h("p",null,"2.決議本次使用的券別類型　"+g[2]+"通用貴賓券　"+g[3]+"客製貴賓券")));
+  const sig = h("table",{class:"sig"}); sig.append(h("tr",null,h("th",{style:"width:33%"},"品牌總經理簽名"),h("th",null,"品牌總經理備註")),h("tr",null,h("td"),h("td")));
+  p.append(sig, h("hr"), h("p",{class:"note"},"*以下由總部專案人員填寫"), h("div",{class:"kh"},"凱惠系統設定資料"));
+  const kt = h("table",{class:"kh-t"}); khRows().forEach(([k,v],i)=>kt.append(h("tr",i%2?{class:"shade"}:null,h("td",{class:"k"},k),h("td",null,v?linesEl(v.split("\n")):val("")))));
+  p.append(kt, h("p",{class:"foot"},"※本申請書審核通過後由會計部留存並通知申請單位與公告單位進行公告佈達。"));
+  $("exTag").hidden = !S._example;
+  $("mLine").textContent = mLineText();
+}
+function mDeadlines(){
+  const box = $("deadlines"); box.replaceChildren();
+  if (!S.deadlines.length) S.deadlines=[""];
+  S.deadlines.forEach((v,i)=>{
+    const inp = h("input",{type:"date",id:"dl"+i,"aria-label":"期限"+(i+1)}); inp.value=v;
+    inp.addEventListener("input",()=>{ S.deadlines[i]=inp.value; S._example=false; mSave(); mRender(); });
+    const row = h("div",{class:"dl"}, inp);
+    if (S.deadlines.length>1){ const del=h("button",{type:"button","aria-label":"刪除這個期限"},"刪除"); del.onclick=()=>{S.deadlines.splice(i,1);mSave();mDeadlines();mRender();}; row.append(del); }
+    box.append(row);
+  });
+}
+function mFill(){
+  fillFields(S, M_FIELDS, ""); fillUnit(); mDeadlines();
+  if(!S.branchSel) S.branchSel=parseBranches(S.branches);
+  setBranches(S.branchSel); buildBranchPick();
+  ["gmPass","gmType","vType"].forEach(k=>document.querySelectorAll(`input[name="m_${k}"]`).forEach(r=>r.checked = r.value===(S[k]??"")));
+  $("vTypeHint").textContent = VTYPES[S.vType] ? "券別內容：" + VTYPES[S.vType].content : "請在「凱惠系統設定資料」填寫券別內容。";
+  mRender();
+}
+document.querySelectorAll('input[name="m_vType"]').forEach(r=>r.addEventListener("change",()=>{ if(r.checked){ applyVType(r.value); S._example=false; mSave(); mFill(); } }));
+["gmPass","gmType"].forEach(k=>document.querySelectorAll(`input[name="m_${k}"]`).forEach(r=>r.addEventListener("change",()=>{ if(r.checked){ S[k]=r.value; S._example=false; mSave(); mRender(); } })));
+bindFields(()=>S, M_FIELDS, "", ()=>{ S._example=false; mSave(); mRender(); });
+$("addDeadline").onclick=()=>{ S.deadlines.push(""); mSave(); mDeadlines(); };
+$("resetRules").onclick=()=>{ S.rules=STD_RULES.join("\n"); syncBranchRule(); mSave(); mRender(); };
+armClear("clearBtn", ()=>{ const keep={unit:S.unit,applicant:S.applicant,brand:S.brand}; S=Object.assign(structuredClone(M_BLANK), keep); mSave(); mFill(); toast("已清空，品牌、單位和申請人保留"); });
+$("mLineCopy").onclick=()=>copyText(mLineText(),"已複製 LINE 訊息");
+function mPlain(){
+  const L=["貴賓券申請書","申請品牌："+S.brand+"　申請單位："+S.unit+"　申請日期："+dot(S.date),"申請主旨："+S.subject,"樣式："+styleText(S),
+    "數量："+S.qty+" 張　可用分院："+S.branches,"申請目的與預估目標：",S.purpose,"使用規則：",...ruleLines(),"申請人簽名："+S.applicant];
+  const g=gmMarks(); L.push("1.申請是否通過? "+g[0]+"通過 "+g[1]+"未通過，須修正","2.決議本次使用的券別類型 "+g[2]+"通用貴賓券 "+g[3]+"客製貴賓券");
+  const kh=khRows().filter(([,v])=>v); if(kh.length){ L.push("","凱惠系統設定資料"); kh.forEach(([k,v])=>L.push(k+"："+v)); }
+  return L.join("\n");
+}
+// --- docx fill ---
+const W="http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+const kids=(el,name,ns=W)=>[...el.childNodes].filter(n=>n.nodeType===1 && n.namespaceURI===ns && n.localName===name);
+function setWCell(doc, tc, lines){
+  const ps=kids(tc,"p"); const tpl=ps[0];
+  ps.forEach(p=>tc.removeChild(p));
+  (lines.length?lines:[""]).forEach(line=>{
+    const p=tpl.cloneNode(true);
+    [...p.childNodes].forEach(c=>{ if(!(c.nodeType===1 && c.localName==="pPr")) p.removeChild(c); });
+    if(line){
+      const r=doc.createElementNS(W,"w:r");
+      const pPr=kids(p,"pPr")[0]; const prr=pPr && kids(pPr,"rPr")[0];
+      const rPr = prr ? prr.cloneNode(true) : doc.createElementNS(W,"w:rPr");
+      if(!kids(rPr,"b").length){ const b=doc.createElementNS(W,"w:b"); b.setAttributeNS(W,"w:val","0"); const f=kids(rPr,"rFonts")[0]; f? f.after(b) : rPr.prepend(b); }
+      r.appendChild(rPr);
+      const t=doc.createElementNS(W,"w:t"); t.setAttributeNS("http://www.w3.org/XML/1998/namespace","xml:space","preserve"); t.textContent=line;
+      r.appendChild(t); p.appendChild(r);
+    }
+    tc.appendChild(p);
+  });
+}
+const tplCache={};
+async function getTemplate(file){ if(!tplCache[file]){ const res=await fetch(file); if(!res.ok) throw new Error("找不到範本檔 "+file); tplCache[file]=await res.arrayBuffer(); } return JSZip.loadAsync(tplCache[file]); }
+function serialize(doc){ let out=new XMLSerializer().serializeToString(doc); if(!out.startsWith("<?xml")) out='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'+out; return out; }
+async function mBuild(){
+  const zip=await getTemplate("template.docx");
+  const doc=new DOMParser().parseFromString(await zip.file("word/document.xml").async("string"),"application/xml");
+  const tbls=doc.getElementsByTagNameNS(W,"tbl");
+  const rows=kids(tbls[0],"tr").map(tr=>kids(tr,"tc"));
+  setWCell(doc, rows[0][1], [S.brand]); setWCell(doc, rows[0][3], [S.unit]); setWCell(doc, rows[0][5], [dot(S.date)]);
+  setWCell(doc, rows[1][1], [S.subject]); setWCell(doc, rows[2][1], [styleText(S)]);
+  setWCell(doc, rows[3][1], [(S.qty||"    ")+" 張"]); setWCell(doc, rows[3][3], [S.branches]);
+  setWCell(doc, rows[4][1], S.purpose.split("\n")); setWCell(doc, rows[5][1], ruleLines()); setWCell(doc, rows[6][1], [S.applicant]);
+  if(tbls[2]){ const kr=kids(tbls[2],"tr").map(tr=>kids(tr,"tc")); khRows().forEach(([,v],i)=>{ if(kr[i]&&v) setWCell(doc, kr[i][1], v.split("\n")); }); }
+  // 品牌總經理決議: the 4 □ boxes in the "1.申請是否通過" paragraph, in order 通過/未通過/通用/客製
+  const gp=[...doc.getElementsByTagNameNS(W,"p")].find(p=>p.textContent.includes("申請是否通過"));
+  if(gp){ const marks=gmMarks(); [...gp.getElementsByTagNameNS(W,"t")].filter(t=>t.textContent.trim()==="□").forEach((t,i)=>{ if(marks[i]) t.textContent=marks[i]; }); }
+  zip.file("word/document.xml", serialize(doc));
+  return zip.generateAsync({type:"blob",compression:"DEFLATE",mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
+}
+const M_AI_EXAMPLES = `範例1：申請單位 信富家｜主旨「大使專屬990好禮二選一_申請開卷」｜數量120張｜可用分院 全台美加分院
+目的：針對新進大使推客觸及新客進店發放好禮二選一$990卷，提升新客到店率
+券別內容：好禮二選一(A.12倍素顏光療一堂原價3000 B.全方位護膚一堂原價3500)｜期限 2026-03-31
+範例2：申請單位 信富家｜主旨「美加X高爾夫嘉年華好禮二選一_申請開卷」｜數量1000張
+目的：針對品牌曝光率及新客來店數發放好禮二選一$990卷，提升新客到店率
+商品提示 來源:線下通路活動，大使:信富家異業合作｜期限 2026-06-30
+範例3：申請單位 好的行銷｜主旨「2026法布甜中秋刮刮卡_申請開卷」｜數量5300張
+目的：針對品牌曝光率及新客來店數發放法布甜刮刮卡，提升新客到店率
+商品提示 來源:法布甜，大使:專案好的行銷｜券別內容：增肌動磁波｜期限 2026-11-30、2026-12-31、2027-01-31（分三批）
+範例4：申請單位 數創部｜主旨「數創部林朝陽聚會推廣美加醫美好禮三選一_申請開卷」｜數量20張
+目的：數創部林朝陽聚會推廣美加醫美好禮三選一，針對品牌曝光率及新客來店數發放美加好禮三選一，提升新客到店率
+其他附註：HC編號TW02809196/林朝陽｜券別內容：好禮三選一(A.12倍素顏光療 B.AMP C.營養點滴)
+範例5：申請單位 信富家｜主旨「2026全球城市小姐總決賽美加好禮三選一」｜數量30張
+目的：吳董贊助2026全球城市小姐總決賽，發放特殊貴賓券，達到引客及品牌推廣效果
+券別內容：好禮三選一(A.12倍素顏光療一堂 B.AMP一堂 C.針劑保肝.美白)`;
+runAI({go:"aiGo",stop:"aiStop",out:"aiOut",briefEl:"aiBrief",
+  emptyMsg:"先用一兩句話描述活動：活動名稱、張數、好禮內容、來源或大使、期限。",
+  prompt:brief=>`你是台灣醫美集團（品牌：美加、DC）行銷部門的同事，幫忙填寫內部「貴賓券申請書」。請用繁體中文、台灣用語，完全比照下列過去範例的寫法：主旨簡短並以「_申請開卷」結尾；申請目的通常一句話（「針對…發放…，提升新客到店率」這類句型）；不要加油添醋或捏造數字。
+
+【過去實際申請書範例】
+${M_AI_EXAMPLES}
+
+【今天日期】${iso(today)}
+【目前表單已有內容】申請品牌:${S.brand||"未填"}；申請單位:${S.unit||"未填"}；申請人:${S.applicant||"未填"}
+【可選的申請單位】${ALL_UNITS.join("、")}（描述有提到才填，且要用這份清單裡的名稱；申請品牌會依單位自動帶入）
+【這次活動描述】
+${brief}
+
+只回傳一個 JSON 物件，欄位如下（不知道的欄位給空字串或空陣列，不要猜）：
+{"subject":"主旨","qty":"數字字串","branches":"可用分院：沒限定就給「全台美加分院」；有限定就只能從 ${MJ_BRANCHES.join("、")} 選，多家用、分隔（例：說台中＝台中向上、台中崇德；說台北＝台北仁愛）","purpose":"申請目的與預估目標","source":"商品提示的來源","ambassador":"商品提示的大使","extra":"其他附註，多條用\\n分隔","deadlines":["YYYY-MM-DD"],"khName":"券別名稱（通常是主旨去掉_申請開卷，可加金額如990）","khContent":"券別內容","vType":"券種：three＝好禮三選一（煥膚光療／保濕潤澤導入／針劑美白或護肝擇一），two990＝好禮二選一$990（12倍素顏光療／全方位護膚），都不是就給 custom；描述沒講清楚時用 two990","unit":"申請單位（描述有提到才填）","check":"一句話提醒申請人要再確認的地方，沒有就空字串"}`,
+  apply:r=>{
+    ["subject","branches","purpose","source","ambassador","extra","khName","khContent","unit"].forEach(k=>{ const v=str(r[k]); if(v) S[k]=v; });
+    const q=str(r.qty).replace(/[^\d]/g,""); if(q) S.qty=q;
+    if(Array.isArray(r.deadlines)){ const d=r.deadlines.map(str).filter(isoOk); if(d.length) S.deadlines=d; }
+    S.branchSel=parseBranches(S.branches);
+    const vt=str(r.vType); if(VTYPES[vt]) applyVType(vt); else if(vt==="custom") S.vType="custom";
+    S.khAuto=true; S._example=false; mSave(); mFill(); return str(r.check);
+  }});
+
+// ================= 康博 事業處簽呈 =================
+const noFor = d => d.replace(/-/g,"")+"001";
+const D_EXAMPLE = {
+  no:noFor(iso(today)), conf:"一般",
+  subject:"因應2026信富家&高爾夫球活動 11/26~29 美麗華嘉年華贊助品活動宣傳需求，申請康博診所常規課程體驗券發放相關事宜。",
+  reason:"因應2026 11/26~29 美麗華嘉年華贊助品活動宣傳，規劃透過課程體驗券作為推廣資源，強化品牌曝光度並拓展高價值客群，申請課程體驗券作為現場貴賓發放使用。",
+  detail:"為因應11/26~29 美麗華嘉年華贊助品活動宣傳，為利於品牌推廣與參訪體驗導客機會，規劃發放課程體驗券作為推廣使用。",
+  unit:"信富家", person:"", qty:"100", kind:"regular", regular:"DC頂級3合1券(保養護肝點滴1堂＋ABI 1堂＋身體組成分析1堂)",
+  stPhysical:true, stLine:false, stOther:false, styleOther:"", area:"all", areaName:"",
+  pName:"", pPrice:"", pItems:"", pRules:"", pOpen:"一開全開", pBonus:"信富家異業合作", pDoctor:"可", pMedical:"否", pFinance:"否", pOther:"", pDM:"否",
+  expiry:"2027-03-31", cUnit:"11/26~29 美麗華嘉年華贊助品", cTarget:"11/26~29 美麗華嘉年華贊助品活動現場貴賓",
+  cPurpose:"作為11/26~29 美麗華嘉年華贊助品活動現場貴賓推廣使用，促進分院療程體驗與後續消費轉換。",
+  due:iso(today), seal:"no", att1:"", att2:"", att3:"", signer:"", serial:"", vName:"", vContent:"", vType:"trio", _example:true
+};
+const DC_BRANCHES = ["台北大安","桃園中正","新竹竹北","台中惠文","台中北屯","台南安平"];
+const DVTYPES = {
+  friend:{regular:"好友分享券-全方位寶肝課程*1堂", content:"好友分享券(全方位寶肝課程1堂)", hint:"券號開頭 DCF。"},
+  trio:{regular:"DC頂級3合1券(寶肝活力點滴課程1堂＋身體老化指數檢測1堂＋高階血管風險檢測1堂)", content:"三項好禮(A.寶肝活力點滴課程乙堂 B.身體老化指數檢測乙堂 C.高階血管風險檢測乙堂，價值4,500)", hint:"券號開頭 DEE。高階血管風險檢測僅限指定分院提供，每位貴賓限用一次（以身分ID識別）。"}
+};
+function dParse(s){
+  s=s||""; let sel=DC_BRANCHES.filter(b=>s.includes(b));
+  if(!sel.length){ const cities=["台北","桃園","新竹","台中","台南"].filter(c=>s.includes(c)); sel=DC_BRANCHES.filter(b=>cities.some(c=>b.startsWith(c))); }
+  return sel;
+}
+function dSetBranches(sel){
+  D.areaSel = DC_BRANCHES.filter(b=>sel.includes(b));
+  D.area = D.areaSel.length ? "limited" : "all";
+  D.areaName = D.areaSel.join("、");
+}
+function buildDBranchPick(){
+  const box=$("dBranchPick"); box.replaceChildren();
+  const all=h("input",{type:"checkbox",id:"dbr_all"}); all.checked=!D.areaSel.length;
+  all.addEventListener("change",()=>{ dSetBranches([]); buildDBranchPick(); D._example=false; dSave(); dRender(); });
+  box.append(h("label",null,all,"全區"));
+  DC_BRANCHES.forEach((b,i)=>{
+    const cb=h("input",{type:"checkbox",id:"dbr_"+i}); cb.checked=D.areaSel.includes(b);
+    cb.addEventListener("change",()=>{ const cur=new Set(D.areaSel); cb.checked?cur.add(b):cur.delete(b); dSetBranches([...cur]); buildDBranchPick(); D._example=false; dSave(); dRender(); });
+    box.append(h("label",null,cb,b));
+  });
+}
+function applyDVType(t){ D.vType=t; const v=DVTYPES[t]; if(!v) return; D.kind="regular"; D.regular=v.regular; D.vContent=v.content; }
+const D_BLANK = Object.assign(structuredClone(D_EXAMPLE), {subject:"",reason:"",detail:"",qty:"",regular:"",pName:"",pPrice:"",pItems:"",pRules:"",pOther:"",
+  expiry:"",cUnit:"",cTarget:"",cPurpose:"",att1:"",att2:"",att3:"",serial:"",vName:"",vContent:"",vType:"custom",area:"all",areaName:"",areaSel:[],_example:false});
+const D_TEXT = ["no","subject","reason","detail","unit","person","qty","regular","styleOther","pName","pPrice","pItems","pRules","pOpen","pBonus","pDoctor","pMedical","pFinance","pOther","pDM","expiry","cUnit","cTarget","cPurpose","due","att1","att2","att3","signer","serial","vName","vContent","stPhysical","stLine","stOther"];
+const D_RADIOS = {conf:"d_conf", kind:"d_kind", seal:"d_seal", vType:"d_vType"};
+let D = load("dc-draft", D_EXAMPLE);
+const dSave = ()=>store("dc-draft", D);
+
+const box = on => on ? "■" : "□";
+function dA10(){ return box(D.kind==="regular")+"常規："+(D.kind==="regular"?D.regular+(D.qty?"，共"+D.qty+"張":""):"")+"\n"+box(D.kind==="project")+"專案內容請詳述如下："; }
+function dJ10(){ return box(D.stPhysical)+" 實體券\n"+box(D.stLine)+"LINE@優惠券\n"+box(D.stOther)+"其他"+(D.stOther&&D.styleOther?D.styleOther:"___________"); }
+function dJ11(){ const lim=D.area==="limited"; return box(!lim)+" 全區\n"+box(lim)+"限定"+(lim&&D.areaName?D.areaName:"______")+"分院"; }
+function dA12(){
+  const items = D.pItems.trim() ? D.pItems.trim() : "(1)項目（VIP價／原價）*堂數\n(2)項目（VIP價／原價）*堂數";
+  return "（常規療程券不需填寫）\n>專案名稱："+D.pName+"\n>專案販售價格："+(D.pPrice||"／／")+"（專案價／VIP價加總／原價加總）\n>專案項目：\n"+items+"\n>專案使用規則："+D.pRules;
+}
+function dG12(){ return ">專案開卡："+D.pOpen+"\n>專案通路獎金(HC/大使)："+D.pBonus+"\n>專案醫師協助成交(項目)："+D.pDoctor+"\n>專案醫收開立："+D.pMedical+"\n>專案財報分類："+D.pFinance+"\n>專案其他備註(特殊請款/特殊耗材)："+(D.pOther||"無則免填")+"\n>專案DM："+D.pDM; }
+function dA13(){ return "療程券期限："+dot(D.expiry)+"\n療程券單位："+D.cUnit+"\n療程券貴賓對象："+D.cTarget+"\n使用目的："+D.cPurpose; }
+function dDue(){ if(!D.due) return ["","",""]; const [y,m,d]=D.due.split("-"); return [Number(y)-1911, Number(m), Number(d)]; }
+function dLineText(){
+  return ["券別名稱："+(D.vName||D.cUnit||D.pName),
+    "券別內容："+(D.vContent||(D.kind==="regular"?D.regular:D.pName)),
+    "券號："+(D.serial||"（尚未取得）").replace(/\s*-\s*/,"~"),
+    "數量："+(D.qty||"")+"張",
+    "期限："+slash(D.expiry)].join("\n");
+}
+function dRender(){
+  const p=$("dPaper"); p.replaceChildren();
+  const [ry,rm,rd]=dDue();
+  p.append(
+    h("div",{class:"dchead"}, h("span",{style:"border:1px solid #555;padding:0 14px;font-size:11px"},"版本"), h("h3",null,"事業處簽呈"),
+      h("span",null, box(D.conf==="機密")+"機密　"+box(D.conf!=="機密")+"一般")),
+    h("div",{style:"text-align:right;font-size:12px"},"簽呈編號：",h("b",null,D.no)),
+    h("div",{class:"sec"},"一、主旨",h("small",null,"1~2句話簡述簽呈主旨")), h("div",{class:"box y"},D.subject),
+    h("div",{class:"sec"},"二、原因與目的",h("small",null,"說明簽呈內容之原因或目的")), h("div",{class:"box y"},D.reason),
+    h("div",{class:"sec"},"三、詳細說明",h("small",null,"概述5W1H(When、Who、Where、What、Why、How)；其他詳細參考資料請於附件提供")), h("div",{class:"box y"},D.detail)
+  );
+  const t=h("table");
+  t.append(
+    h("tr",null,h("td",{style:"width:14%"},"申請單位"),h("td",{colspan:2,class:"y",style:"text-align:center"},D.unit),h("td",{style:"width:12%;text-align:center"},"申請人"),h("td",{class:"y",style:"text-align:center"},D.person),h("td",{style:"width:9%;text-align:center"},"數量"),h("td",{class:"y",style:"width:20%"},"共 "+(D.qty||"___")+" 張")),
+    h("tr",null,h("td",{colspan:5,rowspan:2,class:"y"},dA10()),h("td",{style:"text-align:center"},"樣式"),h("td",{class:"y"},dJ10())),
+    h("tr",null,h("td",{style:"text-align:center"},"可用\n分院"),h("td",{class:"y"},dJ11())),
+    h("tr",null,h("td",{colspan:4,class:"g top"},dA12()),h("td",{colspan:3,class:"g top"},dG12())),
+    h("tr",null,h("td",{colspan:7,class:"y",style:"height:72px"},dA13())),
+    h("tr",null,h("td",{class:"b"},"事業處總經理簽名填寫"),h("td",{class:"b",style:"text-align:center"},"核決"),h("td",{class:"b",colspan:2},"□通過\n□未通過，修正如右側"),h("td",{class:"b",colspan:3},"□療程券張數，調整為______\n□療程券種類，調整為__________\n□其他，補充________________")),
+    h("tr",null,h("td",{colspan:2},"小總部填寫(凱惠系統設定)"),h("td",{colspan:2,style:"text-align:center"},"券別序號"),h("td",{colspan:3},D.serial))
+  );
+  p.append(t,
+    h("p",{class:"plain"},"如奉　核可，逕行辦理後續作業。"),
+    h("p",{class:"plain"},"擬辦作業完成期限：　"+ry+" 年　"+rm+" 月　"+rd+" 日"),
+    h("p",{class:"plain"},"是否須用印：　"+box(D.seal==="yes")+" 是【請於附件附上用印申請單及需用印文件】　"+box(D.seal!=="yes")+" 否"),
+    h("div",{class:"sec",style:"margin-top:10px"},"五、附件說明",h("small",null,"請列舉各項附件標題，並於簽呈中依序附上各項附件內容")),
+    h("div",{class:"box y"},"附件一　"+D.att1+"\n附件二　"+D.att2+"\n附件三　"+D.att3),
+    h("div",{class:"signs"},h("span",null,"董事長："),h("span",null,"執行長："),h("span",null,"會簽會計單位："),h("span",null,"處級主管："),h("span"),h("span"),h("span",null,"事業處總經理："),h("span",null,"申請人："+D.signer)),
+    h("p",{class:"fine"},"※ 核決通知：核決後之簽呈紙本由最終核決人歸檔，最終核決人亦須負責將簽呈掃描檔寄送給會知單位及其他與簽單位")
+  );
+  $("dExTag").hidden=!D._example;
+  $("dLine").textContent=dLineText();
+}
+function dFill(){
+  if(!Array.isArray(D.areaSel)) D.areaSel = D.area==="limited" ? dParse(D.areaName) : [];
+  dSetBranches(D.areaSel); buildDBranchPick();
+  fillFields(D, D_TEXT, "d_");
+  for(const k in D_RADIOS) document.querySelectorAll(`input[name="${D_RADIOS[k]}"]`).forEach(r=>r.checked = r.value===D[k]);
+  $("dVTypeHint").textContent = DVTYPES[D.vType] ? DVTYPES[D.vType].content + "　" + DVTYPES[D.vType].hint : "";
+  dRender();
+}
+bindFields(()=>D, D_TEXT, "d_", ()=>{ D._example=false; dSave(); dRender(); });
+for(const k in D_RADIOS) document.querySelectorAll(`input[name="${D_RADIOS[k]}"]`).forEach(r=>r.addEventListener("change",()=>{
+  if(!r.checked) return;
+  if(k==="vType"){ applyDVType(r.value); D._example=false; dSave(); dFill(); return; }
+  D[k]=r.value; D._example=false; dSave(); dRender();
+}));
+$("d_noGen").onclick=()=>{ D.no=noFor(iso(new Date())); $("d_no").value=D.no; dSave(); dRender(); };
+armClear("dClearBtn", ()=>{ const keep={unit:D.unit,person:D.person,signer:D.signer}; D=Object.assign(structuredClone(D_BLANK), keep, {no:noFor(iso(new Date())), due:iso(new Date())}); dSave(); dFill(); toast("已清空，申請單位和申請人保留"); });
+$("dLineCopy").onclick=()=>copyText(dLineText(),"已複製 LINE 訊息");
+function dPlain(){
+  const [ry,rm,rd]=dDue();
+  return ["事業處簽呈（"+D.conf+"）　簽呈編號："+D.no,"一、主旨",D.subject,"二、原因與目的",D.reason,"三、詳細說明",D.detail,
+    "申請單位："+D.unit+"　申請人："+D.person+"　數量：共 "+D.qty+" 張",dA10(),"樣式："+dJ10().replace(/\n/g," "),"可用分院："+dJ11().replace(/\n/g," "),
+    dA12(),dG12(),dA13(),"券別序號："+D.serial,"擬辦作業完成期限："+ry+"年"+rm+"月"+rd+"日","是否須用印："+(D.seal==="yes"?"是":"否"),
+    "五、附件說明","附件一 "+D.att1,"附件二 "+D.att2,"附件三 "+D.att3,"申請人："+D.signer].join("\n");
+}
+// --- xlsx fill ---
+const X="http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const colNum = ref => { let n=0; for(const ch of ref.match(/^[A-Z]+/)[0]) n=n*26+ch.charCodeAt(0)-64; return n; };
+function xSet(doc, ref, value){
+  const rowN=+ref.match(/\d+/)[0];
+  const sd=doc.getElementsByTagNameNS(X,"sheetData")[0];
+  let row=kids(sd,"row",X).find(r=>+r.getAttribute("r")===rowN);
+  if(!row){ row=doc.createElementNS(X,"row"); row.setAttribute("r",rowN); sd.insertBefore(row, kids(sd,"row",X).find(r=>+r.getAttribute("r")>rowN)||null); }
+  let c=kids(row,"c",X).find(x=>x.getAttribute("r")===ref);
+  if(!c){ c=doc.createElementNS(X,"c"); c.setAttribute("r",ref); row.insertBefore(c, kids(row,"c",X).find(x=>colNum(x.getAttribute("r"))>colNum(ref))||null); }
+  [...c.childNodes].forEach(ch=>c.removeChild(ch)); c.removeAttribute("t");
+  if(value===""||value==null) return;
+  if(typeof value==="number"){ const v=doc.createElementNS(X,"v"); v.textContent=String(value); c.appendChild(v); return; }
+  c.setAttribute("t","inlineStr");
+  const is=doc.createElementNS(X,"is"), t=doc.createElementNS(X,"t");
+  t.setAttributeNS("http://www.w3.org/XML/1998/namespace","xml:space","preserve"); t.textContent=value; is.appendChild(t); c.appendChild(is);
+}
+async function dBuild(){
+  const zip=await getTemplate("dc-template.xlsx");
+  const path="xl/worksheets/sheet2.xml";
+  const doc=new DOMParser().parseFromString(await zip.file(path).async("string"),"application/xml");
+  const [ry,rm,rd]=dDue();
+  const set = {
+    J2: /^\d+$/.test(D.no)? Number(D.no) : D.no,
+    A4:D.subject, A6:D.reason, A8:D.detail, B9:D.unit, G9:D.person, J9:"共 "+(D.qty||"___")+" 張",
+    A10:dA10(), J10:dJ10(), J11:dJ11(), A12:dA12(), G12:dG12(), A13:dA13(), E16:D.serial,
+    B18:ry, D18:rm, F18:rd, B22:D.att1, B23:D.att2, B24:D.att3, J27:D.signer
+  };
+  for(const ref in set) xSet(doc, ref, set[ref]);
+  zip.file(path, serialize(doc));
+  // checkboxes: ctrlProp5 用印是, ctrlProp6 用印否, ctrlProp7 機密, ctrlProp8 一般 (same order in vmlDrawing2)
+  const checks=[D.seal==="yes", D.seal!=="yes", D.conf==="機密", D.conf!=="機密"];
+  for(let i=0;i<4;i++){
+    const pp="xl/ctrlProps/ctrlProp"+(5+i)+".xml"; let s=await zip.file(pp).async("string");
+    s=s.replace(/\s*checked="[^"]*"/,""); if(checks[i]) s=s.replace('objectType="CheckBox"','objectType="CheckBox" checked="Checked"');
+    zip.file(pp,s);
+  }
+  const vp="xl/drawings/vmlDrawing2.vml"; let v=await zip.file(vp).async("string"); let i=0;
+  v=v.replace(/<x:ClientData[\s\S]*?<\/x:ClientData>/g, m=>{ const on=checks[i++]; m=m.replace(/\s*<x:Checked>\d<\/x:Checked>/,""); return on? m.replace("<x:NoThreeD/>","<x:Checked>1</x:Checked><x:NoThreeD/>") : m; });
+  zip.file(vp,v);
+  return zip.generateAsync({type:"blob",compression:"DEFLATE",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+}
+const D_AI_EXAMPLES = `範例1（台中霧峰高爾夫）
+主旨：因應2026台中霧峰高爾夫俱樂部會員聯誼賽擺攤活動宣傳需求，申請康博診所常規課程體驗券發放相關事宜。
+原因與目的：因應2026台中霧峰高爾夫俱樂部會員聯誼賽擺攤活動宣傳，規劃透過課程體驗券作為推廣資源，強化品牌曝光度並拓展高價值客群，申請課程體驗券作為現場貴賓發放使用。
+詳細說明：為因應9/16-9/17，台中霧峰高爾夫俱樂部於霧峰球場舉辦會員聯誼賽擺攤活動宣傳，為利於品牌推廣與參訪體驗導客機會，規劃發放課程體驗券作為推廣使用。
+常規內容：保肝針*1堂｜數量338張｜療程券期限2026.12.31｜療程券單位：台中霧峰高爾夫俱樂部聯誼賽
+療程券貴賓對象：台中霧峰高爾夫俱樂部聯誼賽擺攤活動現場貴賓
+使用目的：作為台中霧峰高爾夫俱樂部聯誼賽擺攤活動現場貴賓推廣使用，促進分院療程體驗與後續消費轉換。
+範例2（美麗華嘉年華）
+主旨：因應2026信富家&高爾夫球活動 11/26~29 美麗華嘉年華贊助品活動宣傳需求，申請康博診所常規課程體驗券發放相關事宜。
+原因與目的：因應2026 11/26~29 美麗華嘉年華贊助品活動宣傳，規劃透過課程體驗券作為推廣資源，強化品牌曝光度並拓展高價值客群，申請課程體驗券作為現場貴賓發放使用。
+詳細說明：為因應11/26~29 美麗華嘉年華贊助品活動宣傳，為利於品牌推廣與參訪體驗導客機會，規劃發放課程體驗券作為推廣使用。
+常規內容：DC頂級3合1券(保養護肝點滴1堂＋ABI 1堂＋身體組成分析1堂)｜數量100張｜療程券期限2027.03.31｜療程券單位：11/26~29 美麗華嘉年華贊助品`;
+runAI({go:"dAiGo",stop:"dAiStop",out:"dAiOut",briefEl:"dAiBrief",
+  emptyMsg:"先用一兩句話描述活動：日期、地點、活動名稱、張數、療程內容、期限。",
+  prompt:brief=>`你是台灣醫美集團 DC（康博診所）的行銷同事，幫忙寫內部「事業處簽呈」申請療程體驗券。請用繁體中文、台灣用語，句型完全比照下列過去範例（主旨以「因應…需求，申請康博診所常規課程體驗券發放相關事宜。」為骨架），不要捏造數字或日期。
+
+【過去實際簽呈範例】
+${D_AI_EXAMPLES}
+
+【今天日期】${iso(today)}
+【這次活動描述】
+${brief}
+
+只回傳一個 JSON 物件（不知道的欄位給空字串，不要猜）：
+{"subject":"主旨","reason":"原因與目的","detail":"詳細說明（5W1H 一段話）","qty":"數字字串","regular":"常規內容，如 保肝針*1堂","expiry":"療程券期限 YYYY-MM-DD","cUnit":"療程券單位","cTarget":"療程券貴賓對象","cPurpose":"使用目的","vName":"券別名稱（LINE 通知用，簡短）","area":"可用分院：沒限定給 all，有限定分院給 limited","areaName":"限定的分院，只能從 ${DC_BRANCHES.join("、")} 選，多家用、分隔（說台中＝台中惠文、台中北屯；沒限定給空字串）","vType":"券種：friend＝好友分享券（全方位寶肝課程1堂），trio＝三項好禮券（寶肝活力點滴＋身體老化指數檢測＋高階血管風險檢測，價值4,500），都不是給 custom","unit":"申請單位（描述有提到才填）","check":"一句話提醒申請人要再確認的地方，沒有就空字串"}`,
+  apply:r=>{
+    ["subject","reason","detail","regular","cUnit","cTarget","cPurpose","vName","unit"].forEach(k=>{ const v=str(r[k]); if(v) D[k]=v; });
+    const q=str(r.qty).replace(/[^\d]/g,""); if(q) D.qty=q;
+    const e=str(r.expiry); if(isoOk(e)) D.expiry=e;
+    if(str(r.regular)) D.kind="regular";
+    const an=str(r.areaName);
+    if(str(r.area)==="limited" && an){ D.areaSel=dParse(an); }
+    else if(str(r.area)==="all"){ D.areaSel=[]; }
+    const vt=str(r.vType); if(DVTYPES[vt]) applyDVType(vt); else if(vt==="custom") D.vType="custom";
+    D._example=false; dSave(); dFill(); return str(r.check);
+  }});
+
+// ================= view switching & actions =================
+function view(){ return location.hash==="#dc" ? "dc" : "meijia"; }
+function showView(){
+  const v=view();
+  $("viewM").hidden=v!=="meijia"; $("viewD").hidden=v!=="dc";
+  [["tabM","meijia"],["tabD","dc"]].forEach(([id,k])=>{ if(v===k) $(id).setAttribute("aria-current","page"); else $(id).removeAttribute("aria-current"); });
+  $("dlBtn").textContent = v==="dc" ? "下載 Excel 檔" : "下載 Word 檔";
+}
+window.addEventListener("hashchange", showView);
+$("copyBtn").onclick=()=>copyText(view()==="dc"? dPlain() : mPlain(), "已複製簽呈文字");
+
+// ================= 送出給承辦人（Google Apps Script） =================
+async function makePdfBlob(){
+  const el = view()==="dc" ? $("dPaper") : $("paper");
+  if(!window.html2canvas || !window.jspdf) throw new Error("PDF 工具沒載入，請重新整理頁面");
+  el.classList.add("capturing");
+  try{
+    if(document.fonts?.ready) await document.fonts.ready;
+    const canvas = await html2canvas(el, {scale:2, backgroundColor:"#ffffff"});
+    const pdf = new window.jspdf.jsPDF({unit:"mm", format:"a4", orientation:"portrait"});
+    const pw=210, ph=297, m=8;
+    let w=pw-2*m, hh=canvas.height*w/canvas.width;
+    if(hh>ph-2*m){ hh=ph-2*m; w=canvas.width*hh/canvas.height; }
+    pdf.addImage(canvas.toDataURL("image/jpeg",0.95), "JPEG", (pw-w)/2, m, w, hh);
+    return pdf.output("blob");
+  } finally { el.classList.remove("capturing"); }
+}
+const blobToBase64 = blob => new Promise((ok,bad)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=bad; r.readAsDataURL(blob); });
+if(CONFIG.scriptUrl) $("submitBtn").hidden=false;
+let lastName=""; try{ lastName=localStorage.getItem("submitter-name")||""; }catch(e){}
+$("submitBtn").onclick=()=>{
+  const isDC=view()==="dc"; const st=isDC?D:S;
+  const title = isDC ? (st.cUnit||st.subject) : st.subject;
+  if(!title){ toast(isDC?"請先填主旨或療程券單位再送出":"請先填申請主旨再送出",true); return; }
+  $("smName").value = lastName || (isDC ? (st.signer||st.person||"") : (st.applicant||""));
+  $("smNote").value=""; $("smStatus").textContent=""; $("submitModal").hidden=false; $("smName").focus();
+};
+$("smCancel").onclick=()=>{ $("submitModal").hidden=true; };
+$("smSend").onclick=async()=>{
+  const name=$("smName").value.trim();
+  if(!name){ $("smStatus").textContent="請填你的名字，承辦人才知道是誰送的。"; return; }
+  const isDC=view()==="dc"; const st=isDC?D:S;
+  const btn=$("smSend"); btn.disabled=true; $("smStatus").textContent="產生 PDF 並送出中…";
+  try{
+    const pdf=await makePdfBlob();
+    let wordOrExcel=null, wName=null;
+    try{ wordOrExcel = isDC ? await dBuild() : await mBuild(); wName = baseName() + (isDC?".xlsx":".docx"); }catch(e){}
+    await callScript({
+      action:"submit",
+      form: isDC?"康博 事業處簽呈":"美加 貴賓券申請書",
+      title: isDC ? (st.cUnit||st.subject) : st.subject,
+      unit: st.unit||"", submitter:name, note:$("smNote").value.trim(),
+      pdfName: baseName()+".pdf", pdf: await blobToBase64(pdf),
+      fileName: wName, file: wordOrExcel ? await blobToBase64(wordOrExcel) : null,
+      text: isDC ? dPlain() : mPlain()
+    });
+    lastName=name; try{ localStorage.setItem("submitter-name",name); }catch(e){}
+    $("submitModal").hidden=true;
+    toast("已送出，承辦人會收到 PDF");
+  }catch(e){
+    $("smStatus").textContent="送出失敗："+(e?.message||e?.code||"請檢查網路後再試一次")+"。也可以先按「下載 PDF」再自己傳給承辦人。";
+  }finally{ btn.disabled=false; }
+};
+const baseName = () => view()==="dc"
+  ? "DC-體驗券開券簽呈_"+safeName(D.cUnit||D.no||"未命名")
+  : "貴賓券申請書_"+safeName((S.subject||"未命名").replace(/_申請開卷$/,""));
+$("pdfBtn").onclick=async()=>{
+  const btn=$("pdfBtn"); btn.disabled=true; const old=btn.textContent; btn.textContent="產生中…";
+  try{
+    await saveFile(baseName()+".pdf", await makePdfBlob());
+  }catch(e){
+    if(e && e.code==="declined") toast("已取消下載");
+    else toast("PDF 產生失敗："+(e?.message||e?.code||"請再試一次"),true);
+  }finally{ btn.disabled=false; btn.textContent=old; }
+};
+$("dlBtn").onclick=async()=>{
+  const btn=$("dlBtn"); btn.disabled=true;
+  try{
+    if(view()==="dc") await saveFile(baseName()+".xlsx", await dBuild());
+    else await saveFile(baseName()+".docx", await mBuild());
+  }catch(e){
+    if(e && e.code==="declined") toast("已取消下載");
+    else toast("下載失敗："+(e?.message||e?.code||"請再試一次"),true);
+  }finally{ btn.disabled=false; }
+};
+mFill(); dFill(); showView();
+</script>
+</body>
+</html>
