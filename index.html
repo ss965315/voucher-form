@@ -139,8 +139,8 @@ table.inbox tr.done td{opacity:.55}
     <span id="toast" class="toast" role="status"></span>
     <span class="formActions row">
       <button id="copyBtn" type="button">複製簽呈文字</button>
-      <button id="dlBtn" type="button">下載 Word 檔</button>
-      <button id="pdfBtn" type="button">下載 PDF</button>
+      <button id="dlBtn" type="button" hidden>下載 Word 檔</button>
+      <button id="pdfBtn" class="primary" type="button">下載 PDF</button>
       <button id="submitBtn" class="primary" type="button" hidden>送出給承辦人</button>
     </span>
   </div>
@@ -994,7 +994,9 @@ async function makePdfBlob(){
   } finally { el.classList.remove("capturing"); }
 }
 const blobToBase64 = blob => new Promise((ok,bad)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=bad; r.readAsDataURL(blob); });
-if(CONFIG.scriptUrl) $("submitBtn").hidden=false;
+// 「送出給承辦人」目前不使用；要開啟就把下一行的 false 改成 true
+const SHOW_SUBMIT = false;
+if(SHOW_SUBMIT && CONFIG.scriptUrl) $("submitBtn").hidden=false;
 let lastName=""; try{ lastName=localStorage.getItem("submitter-name")||""; }catch(e){}
 $("submitBtn").onclick=()=>{
   const isDC=view()==="dc"; const st=isDC?D:S;
