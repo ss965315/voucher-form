@@ -397,7 +397,7 @@ async function copyText(txt, okMsg){
 }
 // ===== 設定：把 Google Apps Script 部署後的網址貼在這裡 =====
 const CONFIG = {
-  scriptUrl: "",      // 例："https://script.google.com/macros/s/XXXX/exec"
+  scriptUrl: "https://script.google.com/macros/s/AKfycbwWACfagUhTp-S23UDTyLhDGq8-gXGn6d3dSZOAIof8ySYc2r52VWzyFN-qLejPg4qpTQ/exec",      // 例："https://script.google.com/macros/s/XXXX/exec"
   enableAI: true      // Apps Script 有設定 ANTHROPIC_API_KEY 才會真的啟用
 };
 async function callScript(payload, signal){
@@ -425,7 +425,7 @@ async function saveFile(name, blob){
   toast("已下載 "+name);
 }
 const safeName = s => s.replace(/[\\/:*?"<>|\n]/g,"").slice(0,60);
-const AI_ERR = {cancelled:"已停止。",not_granted:"你沒有允許這個頁面使用 AI，可以直接手動填表。",sampling_disabled:"這個帳號不能使用 AI，請直接手動填表。",rate_limited:"AI 使用太頻繁，請稍後再試。",invalid_json:"AI 回覆格式不對，請再按一次「AI 擬稿」。",refused:"AI 無法處理這段描述，請換個說法。"};
+const AI_ERR = {cancelled:"已停止。",not_granted:"AI 擬稿還沒啟用（承辦人尚未設定金鑰），請先手動填表。",sampling_disabled:"這個帳號不能使用 AI，請直接手動填表。",rate_limited:"AI 使用太頻繁，請稍後再試。",invalid_json:"AI 回覆格式不對，請再按一次「AI 擬稿」。",refused:"AI 無法處理這段描述，請換個說法。"};
 function runAI({go, stop, out, briefEl, emptyMsg, prompt, apply}){
   let ctl=null, locked=false;
   $(stop).onclick=()=>ctl?.abort();
