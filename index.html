@@ -135,6 +135,7 @@ table.inbox tr.done td{opacity:.55}
     <nav class="tabs" aria-label="選擇表單">
       <a href="#meijia" id="tabM">美加 貴賓券申請書</a>
       <a href="#dc" id="tabD">康博 事業處簽呈</a>
+      <a href="#search" id="tabS">查詢券號</a>
     </nav>
     <span id="toast" class="toast" role="status"></span>
     <span class="formActions row">
@@ -241,6 +242,7 @@ table.inbox tr.done td{opacity:.55}
       <label class="row" style="font-size:13px;color:var(--muted)"><input id="khAuto" type="checkbox">總張數與有效期限照上面自動帶入</label>
       <p class="hint" id="mSignedHint" hidden></p>
       <button id="mSignedDl" class="primary" type="button" style="align-self:flex-start" hidden>下載已簽 PDF（含凱惠設定）</button>
+      <button id="mRegister" type="button" style="align-self:flex-start">登記券號（之後可在「查詢券號」查到）</button>
     </details>
 
     <details class="card">
@@ -354,6 +356,7 @@ table.inbox tr.done td{opacity:.55}
       <label class="f">券別內容（LINE 通知用）<input id="d_vContent" type="text" placeholder="留空會用常規內容"></label>
       <p class="hint" id="dSignedHint" hidden></p>
       <button id="dSignedDl" class="primary" type="button" style="align-self:flex-start" hidden>下載已簽 PDF（含券別序號）</button>
+      <button id="dRegister" type="button" style="align-self:flex-start">登記券號（之後可在「查詢券號」查到）</button>
     </details>
 
     <details class="card">
@@ -364,6 +367,20 @@ table.inbox tr.done td{opacity:.55}
     </details>
   </div>
   <div class="paperwrap"><article class="paper dc" id="dPaper" aria-label="康博簽呈預覽"></article></div>
+</main>
+
+<!-- ================= 查詢券號 ================= -->
+<main id="viewS" hidden style="grid-template-columns:minmax(0,760px);justify-content:center">
+  <section class="card">
+    <h2><b>查詢</b>券號</h2>
+    <p class="hint">輸入一張券的號碼（例如 MGA13530），會找出它屬於哪一批、期限、來源和大使。也可以輸入活動名稱或關鍵字。</p>
+    <form id="sqForm" class="row" style="flex-wrap:nowrap">
+      <input id="sq" type="text" placeholder="例：MGA13530 或 高爾夫" style="flex:1" autocomplete="off">
+      <button id="sqGo" class="primary" type="submit">查詢</button>
+    </form>
+    <p id="sqMsg" class="hint"></p>
+    <div id="sqOut" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
 </main>
 
 <!-- 載入已簽 PDF 的結果 -->
@@ -999,13 +1016,72 @@ ${brief}
   }});
 
 // ================= view switching & actions =================
-function view(){ return location.hash==="#dc" ? "dc" : "meijia"; }
+function view(){
+  let v = location.hash==="#dc" ? "dc" : (location.hash==="#search" ? "search" : "meijia");
+  if(v==="dc" && !XFJ) v="meijia";
+  if(v==="search" && !HQ) v="meijia";
+  return v;
+}
 function showView(){
   const v=view();
-  $("viewM").hidden=v!=="meijia"; $("viewD").hidden=v!=="dc";
-  [["tabM","meijia"],["tabD","dc"]].forEach(([id,k])=>{ if(v===k) $(id).setAttribute("aria-current","page"); else $(id).removeAttribute("aria-current"); });
+  $("viewM").hidden=v!=="meijia"; $("viewD").hidden=v!=="dc"; $("viewS").hidden=v!=="search";
+  [["tabM","meijia"],["tabD","dc"],["tabS","search"]].forEach(([id,k])=>{ if(v===k) $(id).setAttribute("aria-current","page"); else $(id).removeAttribute("aria-current"); });
+  document.querySelector(".formActions").hidden = v==="search";
   $("dlBtn").textContent = v==="dc" ? "下載 Excel 檔" : "下載 Word 檔";
+  if(v==="search") setTimeout(()=>$("sq").focus(),0);
 }
+
+// ===== 查詢券號 / 登記券號 =====
+function sqField(label, value, warn){
+  return h("div",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},
+    h("span",{class:"lbl"},label), h("span",{style:"font-weight:500"+(warn?";color:var(--seal)":"")}, value||"—"));
+}
+function renderSearch(results, q){
+  const box=$("sqOut"); box.replaceChildren();
+  if(!results.length){ $("sqMsg").textContent="找不到「"+q+"」。可能是這批券還沒登記到資料庫。"; return; }
+  $("sqMsg").textContent="找到 "+results.length+" 筆";
+  const today=iso(new Date());
+  results.forEach(r=>{
+    const exp=rocToIso(r["有效期限"]); const expired = exp && exp < today;
+    const head=h("div",{class:"row",style:"justify-content:space-between"},
+      h("strong",{style:"font-size:16px"}, r["券別名稱"]||r["主旨"]||"(未命名)"),
+      h("span",{class:"example",style: expired?"":"background:var(--line-soft);color:var(--ok)"}, expired?"已過期":"有效"));
+    const grid=h("div",{class:"grid3"},
+      sqField("券號範圍", r["券號範圍"]),
+      sqField("有效期限", r["有效期限"]+(expired?"（已過期）":""), expired),
+      sqField("張數", r["張數"]),
+      sqField("來源", r["來源"]),
+      sqField("大使", r["大使"]),
+      sqField("申請單位", [r["申請品牌"], r["申請單位"]].filter(Boolean).join(" / ")));
+    const extra=h("div",{style:"display:flex;flex-direction:column;gap:6px"},
+      sqField("券別內容", r["券別內容"]), sqField("主旨", r["主旨"]),
+      h("span",{class:"hint"},"登記時間："+(r["登記時間"]||"")+(r["表單"]?"　表單："+r["表單"]:"")));
+    box.append(h("article",{class:"card",style:"background:var(--field)"}, head, grid, extra));
+  });
+}
+$("sqForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const q=$("sq").value.trim(); if(!q){ $("sqMsg").textContent="請輸入券號或關鍵字"; return; }
+  if(!CONFIG.scriptUrl){ $("sqMsg").textContent="查詢服務尚未設定"; return; }
+  $("sqGo").disabled=true; $("sqMsg").textContent="查詢中…"; $("sqOut").replaceChildren();
+  try{ const j=await callScript({action:"search", q}); renderSearch(j.results||[], q); }
+  catch(err){ $("sqMsg").textContent="查詢失敗："+(err?.message||err?.code||"請再試一次"); }
+  finally{ $("sqGo").disabled=false; }
+});
+function registerPayload(form){
+  if(form==="dc") return {action:"register", form:"康博 事業處簽呈", serial:D.serial, name:D.vName||D.cUnit, content:D.vContent||(D.kind==="regular"?D.regular:D.pName),
+    qty:D.qty?D.qty+"張":"", expiry:dot(D.expiry), source:"", ambassador:D.pBonus, unit:D.unit, brand:"康博", subject:D.subject};
+  return {action:"register", form:"美加 貴賓券申請書", serial:S.khSerial, name:S.khName||S.subject.replace(/_申請開卷$/,""), content:S.khContent,
+    qty:S.qty?S.qty+"張":"", expiry:S.deadlines.filter(Boolean).map(dot).join("/"), source:S.source, ambassador:S.ambassador, unit:S.unit, brand:S.brand, subject:S.subject};
+}
+async function registerCurrent(form, quiet){
+  const p=registerPayload(form);
+  if(!String(p.serial||"").trim()){ if(!quiet) loadMsg("還沒有券別序號","請先在券別序號填入例如 MGA13502-MGA13551，再按登記。"); return false; }
+  const j=await callScript(p);
+  toast("已登記 "+j.count+" 段券號，可在「查詢券號」查到");
+  return true;
+}
+[["mRegister","meijia"],["dRegister","dc"]].forEach(([id,f])=>{ $(id).onclick=async()=>{ const b=$(id), old=b.textContent; b.disabled=true; b.textContent="登記中…"; try{ await registerCurrent(f); }catch(e){ loadMsg("登記失敗", String(e?.message||e?.code||e)); } finally{ b.disabled=false; b.textContent=old; } }; });
 window.addEventListener("hashchange", showView);
 $("copyBtn").onclick=()=>copyText(view()==="dc"? dPlain() : mPlain(), "已複製簽呈文字");
 
@@ -1061,12 +1137,16 @@ async function findVoucherData(buf){
 }
 // ===== 承辦人模式：網址加上 ?hq 才顯示（例：…/voucher-form/?hq） =====
 const HQ = new URLSearchParams(location.search).has("hq");
+// 信富家專用：網址加 ?xfj 才看得到「康博 事業處簽呈」（承辦人網址也看得到）
+const XFJ = HQ || new URLSearchParams(location.search).has("xfj");
 if(!HQ){
   $("loadSignedBtn").hidden = true;
+  $("tabS").hidden = true;            // 查詢券號：只給承辦人
   document.querySelectorAll("details.card").forEach(d=>{
     if(/凱惠|小總部|LINE/.test(d.querySelector("summary")?.textContent||"")) d.hidden = true;
   });
 }
+if(!XFJ) $("tabD").hidden = true;     // 門店只有美加貴賓券申請書
 // ===== 讀 PDF 上的文字（舊的 Word／Excel 簽呈） =====
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -1179,6 +1259,8 @@ async function exportSigned(){
     }
   }
   const out = await doc.save();
+  // 有券別序號就順便登記到券號資料庫（失敗不影響下載）
+  if(CONFIG.scriptUrl) registerCurrent(signed.form, true).catch(e=>console.warn("register", e));
   await saveFile(signed.name.replace(/\.pdf$/i,"")+"_"+(signed.form==="dc"?"含券別序號":"含凱惠設定")+".pdf", new Blob([out],{type:"application/pdf"}));
 }
 ["mSignedDl","dSignedDl"].forEach(id=>{ $(id).onclick=async()=>{ const b=$(id), old=b.textContent; b.disabled=true; b.textContent="產生中…"; try{ await exportSigned(); }catch(e){ loadMsg("產生 PDF 失敗", String(e?.message||e)); } finally{ b.disabled=false; b.textContent=old; } }; });
