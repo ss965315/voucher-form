@@ -391,7 +391,7 @@ table.inbox tr.done td{opacity:.55}
 <datalist id="branchList"><option value="全台美加分院"><option value="全台DC分院"><option value="全台美加、DC分院"></datalist>
 <datalist id="applicantList"></datalist>
 <datalist id="sourceList"><option value="線下通路活動"><option value="專案活動"><option value="股東介紹(含股東)"><option value="(信富家)代言大使本人"><option value="(信富家)代言大使介紹"><option value="TM介紹(含同仁)"><option value="法布甜介紹(含同仁)"><option value="集團資源"></datalist>
-<datalist id="ambassadorList"><option value="信富家異業合作"><option value="專案好的行銷"><option value="數創部"></datalist>
+<datalist id="ambassadorList"><option value="信富家異業合作"><option value="專案好的行銷"></datalist>
 <datalist id="dcRegularList"><option value="好友分享券-全方位寶肝課程*1堂"><option value="DC頂級3合1券(寶肝活力點滴課程1堂＋身體老化指數檢測1堂＋高階血管風險檢測1堂)"><option value="保肝針*1堂"></datalist>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -786,7 +786,7 @@ ${M_AI_EXAMPLES}
 ${brief}
 
 只回傳一個 JSON 物件，欄位如下（不知道的欄位給空字串或空陣列，不要猜）：
-{"subject":"主旨","qty":"數字字串","branches":"可用分院：沒限定就給「全台美加分院」；有限定就只能從 ${MJ_BRANCHES.join("、")} 選，多家用、分隔（例：說台中＝台中向上、台中崇德；說台北＝台北仁愛）","purpose":"申請目的與預估目標","source":"商品提示的來源，只能從這些選一個：線下通路活動、專案活動、股東介紹(含股東)、(信富家)代言大使本人、(信富家)代言大使介紹、TM介紹(含同仁)、法布甜介紹(含同仁)、集團資源；描述沒明講就給空字串","ambassador":"商品提示的大使，描述有明講才填，不確定就給空字串","extra":"其他附註（例如 HC 編號），描述有明講才填，多條用\\n分隔，沒有就空字串","deadlines":["YYYY-MM-DD"],"khName":"券別名稱（通常是主旨去掉_申請開卷，可加金額如990）","khContent":"券別內容","vType":"券種：three＝好禮三選一（煥膚光療／保濕潤澤導入／針劑美白或護肝擇一），two990＝好禮二選一$990（12倍素顏光療／全方位護膚），都不是就給 custom；描述沒講清楚時用 two990","unit":"申請單位（描述有提到才填）","check":"一句話提醒申請人要再確認的地方，沒有就空字串"}`,
+{"subject":"主旨","qty":"數字字串","branches":"可用分院：沒限定就給「全台美加分院」；有限定就只能從 ${MJ_BRANCHES.join("、")} 選，多家用、分隔（例：說台中＝台中向上、台中崇德；說台北＝台北仁愛）","purpose":"申請目的與預估目標","source":"商品提示的來源，只能從這些選一個：線下通路活動、專案活動、股東介紹(含股東)、(信富家)代言大使本人、(信富家)代言大使介紹、TM介紹(含同仁)、法布甜介紹(含同仁)、集團資源；描述沒明講就給空字串","ambassador":"商品提示的大使，只有描述明講時才填（常用：信富家異業合作、專案好的行銷），不可用人名猜，不確定就給空字串","extra":"其他附註（例如 HC 編號），描述有明講才填，多條用\\n分隔，沒有就空字串","deadlines":["YYYY-MM-DD"],"khName":"券別名稱（通常是主旨去掉_申請開卷，可加金額如990）","khContent":"券別內容","vType":"券種：three＝好禮三選一（煥膚光療／保濕潤澤導入／針劑美白或護肝擇一），two990＝好禮二選一$990（12倍素顏光療／全方位護膚），都不是就給 custom；描述沒講清楚時用 two990","unit":"申請單位（描述有提到才填）","check":"一句話提醒申請人要再確認的地方，沒有就空字串"}`,
   apply:r=>{
     ["subject","branches","purpose","source","ambassador","extra","khName","khContent","unit"].forEach(k=>{ const v=str(r[k]); if(v) S[k]=v; });
     const q=str(r.qty).replace(/[^\d]/g,""); if(q) S.qty=q;
