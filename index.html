@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>開券簽呈產生器</title>
+<title>貴賓券申請小幫手</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@400;700&display=swap">
 <style>
@@ -131,7 +131,7 @@ table.inbox tr.done td{opacity:.55}
 
 <div class="bar">
   <div class="bar-in">
-    <div class="brand"><div class="stamp">券</div><h1>開券簽呈產生器</h1></div>
+    <div class="brand"><div class="stamp">券</div><h1>貴賓券申請小幫手</h1></div>
     <nav class="tabs" aria-label="選擇表單">
       <a href="#meijia" id="tabM">美加 貴賓券申請書</a>
       <a href="#dc" id="tabD">康博 事業處簽呈</a>
@@ -1031,7 +1031,7 @@ async function makePdfBlob(){
     });
     // 把填寫內容藏在 PDF 裡，主管簽完載回來時可以還原表單
     const payload = b64enc(JSON.stringify({v:1, form:view(), data: view()==="dc" ? D : S, pos}));
-    pdf.setProperties({title: baseName(), subject:"開券簽呈產生器", creator:"開券簽呈產生器", keywords: MARK+payload});
+    pdf.setProperties({title: baseName(), subject:"貴賓券申請小幫手", creator:"貴賓券申請小幫手", keywords: MARK+payload});
     pdf.setTextColor(255,255,255); pdf.setFontSize(1); pdf.text(MARK+payload, 1, ph-1);
     return pdf.output("blob");
   } finally { el.classList.remove("capturing"); }
