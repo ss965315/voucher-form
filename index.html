@@ -1019,7 +1019,6 @@ ${brief}
 function view(){
   let v = location.hash==="#dc" ? "dc" : (location.hash==="#search" ? "search" : "meijia");
   if(v==="dc" && !XFJ) v="meijia";
-  if(v==="search" && !HQ) v="meijia";
   return v;
 }
 function showView(){
@@ -1141,7 +1140,6 @@ const HQ = new URLSearchParams(location.search).has("hq");
 const XFJ = HQ || new URLSearchParams(location.search).has("xfj");
 if(!HQ){
   $("loadSignedBtn").hidden = true;
-  $("tabS").hidden = true;            // 查詢券號：只給承辦人
   document.querySelectorAll("details.card").forEach(d=>{
     if(/凱惠|小總部|LINE/.test(d.querySelector("summary")?.textContent||"")) d.hidden = true;
   });
