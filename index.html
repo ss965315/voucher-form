@@ -138,8 +138,10 @@ table.inbox tr.done td{opacity:.55}
     </nav>
     <span id="toast" class="toast" role="status"></span>
     <span class="formActions row">
-      <button id="copyBtn" type="button">複製簽呈文字</button>
+      <button id="copyBtn" type="button" hidden>複製簽呈文字</button>
       <button id="dlBtn" type="button" hidden>下載 Word 檔</button>
+      <input type="file" id="signedPdf" accept="application/pdf,.pdf" hidden>
+      <button id="loadSignedBtn" type="button" title="主管簽完的 PDF 載回來，補填凱惠設定和 LINE 通知">承辦人：載入已簽 PDF</button>
       <button id="pdfBtn" class="primary" type="button">下載 PDF</button>
       <button id="submitBtn" class="primary" type="button" hidden>送出給承辦人</button>
     </span>
@@ -161,7 +163,7 @@ table.inbox tr.done td{opacity:.55}
     </section>
 
     <section class="card">
-      <div class="row" style="justify-content:space-between"><h2><b>1</b>基本資料</h2><span id="exTag" class="example" hidden>目前是範例內容</span><button id="clearBtn" type="button">清空重填</button></div>
+      <div class="row" style="justify-content:space-between"><h2><b>1</b>基本資料</h2><span id="exTag" class="example" hidden>目前是範例內容</span><button id="clearBtn" type="button">重填（回到範例）</button></div>
       <div class="grid3">
         <label class="f">申請品牌<select id="brand"></select></label>
         <label class="f">申請單位<select id="unitSel"></select><input id="unitOther" type="text" placeholder="輸入申請單位" hidden></label>
@@ -238,12 +240,12 @@ table.inbox tr.done td{opacity:.55}
       <label class="row" style="font-size:13px;color:var(--muted)"><input id="khAuto" type="checkbox">總張數與有效期限照上面自動帶入</label>
     </details>
 
-    <section class="card linecard">
-      <h2><b>LINE</b>開券後通知訊息</h2>
+    <details class="card">
+      <summary>LINE 開券後通知訊息（承辦人用）</summary>
       <p class="hint">拿到券號後填進上面「凱惠系統設定資料」的券別序號，這裡會自動帶入。</p>
       <pre id="mLine" class="linemsg"></pre>
       <button id="mLineCopy" type="button" style="align-self:flex-start">複製 LINE 訊息</button>
-    </section>
+    </details>
   </div>
   <div class="paperwrap"><article class="paper" id="paper" aria-label="美加申請書預覽"></article></div>
 </main>
@@ -263,7 +265,7 @@ table.inbox tr.done td{opacity:.55}
     </section>
 
     <section class="card">
-      <div class="row" style="justify-content:space-between"><h2><b>1</b>簽呈資訊</h2><span id="dExTag" class="example" hidden>目前是範例內容</span><button id="dClearBtn" type="button">清空重填</button></div>
+      <div class="row" style="justify-content:space-between"><h2><b>1</b>簽呈資訊</h2><span id="dExTag" class="example" hidden>目前是範例內容</span><button id="dClearBtn" type="button">重填（回到範例）</button></div>
       <div class="grid2">
         <label class="f">簽呈編號<input id="d_no" type="text" inputmode="numeric"></label>
         <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl">版本</span>
@@ -349,12 +351,12 @@ table.inbox tr.done td{opacity:.55}
       <label class="f">券別內容（LINE 通知用）<input id="d_vContent" type="text" placeholder="留空會用常規內容"></label>
     </details>
 
-    <section class="card linecard">
-      <h2><b>LINE</b>開券後通知訊息</h2>
+    <details class="card">
+      <summary>LINE 開券後通知訊息（承辦人用）</summary>
       <p class="hint">拿到券號後填進「小總部填寫」的券別序號，這裡會自動帶入。</p>
       <pre id="dLine" class="linemsg"></pre>
       <button id="dLineCopy" type="button" style="align-self:flex-start">複製 LINE 訊息</button>
-    </section>
+    </details>
   </div>
   <div class="paperwrap"><article class="paper dc" id="dPaper" aria-label="康博簽呈預覽"></article></div>
 </main>
@@ -488,8 +490,8 @@ function bindFields(state, ids, prefix, onChange){
 function fillFields(state, ids, prefix){ ids.forEach(f=>{ const el=$(prefix+f); if(el.type==="checkbox") el.checked=!!state[f]; else el.value=state[f]??""; }); }
 function armClear(btnId, doClear){
   let armed=false; const b=$(btnId);
-  b.onclick=()=>{ if(!armed){ armed=true; b.textContent="再按一次確認清空"; setTimeout(()=>{armed=false;b.textContent="清空重填";},3000); return; }
-    armed=false; b.textContent="清空重填"; doClear(); };
+  b.onclick=()=>{ if(!armed){ armed=true; b.textContent="再按一次確認重填"; setTimeout(()=>{armed=false;b.textContent="重填（回到範例）";},3000); return; }
+    armed=false; b.textContent="重填（回到範例）"; doClear(); };
 }
 
 // ================= 美加 貴賓券申請書 =================
@@ -676,7 +678,7 @@ document.querySelectorAll('input[name="m_vType"]').forEach(r=>r.addEventListener
 bindFields(()=>S, M_FIELDS, "", ()=>{ S._example=false; mSave(); mRender(); });
 $("addDeadline").onclick=()=>{ S.deadlines.push(""); mSave(); mDeadlines(); };
 $("resetRules").onclick=()=>{ S.rules=STD_RULES.join("\n"); syncBranchRule(); mSave(); mRender(); };
-armClear("clearBtn", ()=>{ const keep={unit:S.unit,applicant:S.applicant,brand:S.brand}; S=Object.assign(structuredClone(M_BLANK), keep); mSave(); mFill(); toast("已清空，品牌、單位和申請人保留"); });
+armClear("clearBtn", ()=>{ const keep={unit:S.unit,applicant:S.applicant,brand:S.brand}; S=Object.assign(structuredClone(M_EXAMPLE), keep, {date:iso(new Date())}); mSave(); mFill(); toast("已回到範例內容，改成這次的活動就好（品牌、單位、申請人保留）"); });
 $("mLineCopy").onclick=()=>copyText(mLineText(),"已複製 LINE 訊息");
 function mPlain(){
   const L=["貴賓券申請書","申請品牌："+S.brand+"　申請單位："+S.unit+"　申請日期："+dot(S.date),"申請主旨："+S.subject,"樣式："+styleText(S),
@@ -878,7 +880,7 @@ for(const k in D_RADIOS) document.querySelectorAll(`input[name="${D_RADIOS[k]}"]
   D[k]=r.value; D._example=false; dSave(); dRender();
 }));
 $("d_noGen").onclick=()=>{ D.no=noFor(iso(new Date())); $("d_no").value=D.no; dSave(); dRender(); };
-armClear("dClearBtn", ()=>{ const keep={unit:D.unit,person:D.person,signer:D.signer}; D=Object.assign(structuredClone(D_BLANK), keep, {no:noFor(iso(new Date())), due:iso(new Date())}); dSave(); dFill(); toast("已清空，申請單位和申請人保留"); });
+armClear("dClearBtn", ()=>{ const keep={unit:D.unit,person:D.person,signer:D.signer}; D=Object.assign(structuredClone(D_EXAMPLE), keep, {no:noFor(iso(new Date())), due:iso(new Date()), areaSel:[]}); dSave(); dFill(); toast("已回到範例內容，改成這次的活動就好（申請單位、申請人保留）"); });
 $("dLineCopy").onclick=()=>copyText(dLineText(),"已複製 LINE 訊息");
 function dPlain(){
   const [ry,rm,rd]=dDue();
@@ -990,9 +992,62 @@ async function makePdfBlob(){
     let w=pw-2*m, hh=canvas.height*w/canvas.width;
     if(hh>ph-2*m){ hh=ph-2*m; w=canvas.width*hh/canvas.height; }
     pdf.addImage(canvas.toDataURL("image/jpeg",0.95), "JPEG", (pw-w)/2, m, w, hh);
+    // 把填寫內容藏在 PDF 裡，主管簽完載回來時可以還原表單
+    const payload = b64enc(JSON.stringify({v:1, form:view(), data: view()==="dc" ? D : S}));
+    pdf.setProperties({title: baseName(), subject:"開券簽呈產生器", creator:"開券簽呈產生器", keywords: MARK+payload});
+    pdf.setTextColor(255,255,255); pdf.setFontSize(1); pdf.text(MARK+payload, 1, ph-1);
     return pdf.output("blob");
   } finally { el.classList.remove("capturing"); }
 }
+// ===== 載入已簽 PDF：讀回藏在 PDF 裡的填寫內容 =====
+const MARK = "VOUCHERDATA:";
+const b64enc = s => btoa(unescape(encodeURIComponent(s)));
+const b64dec = s => decodeURIComponent(escape(atob(s)));
+const MARK_RE = /VOUCHERDATA:([A-Za-z0-9+\/=]{20,})/;
+async function findVoucherData(buf){
+  const bytes = new Uint8Array(buf);
+  const latin = new TextDecoder("latin1").decode(bytes);
+  const direct = latin.match(MARK_RE); if(direct) return direct[1];
+  // 被其他軟體重新存檔時，內容可能被壓縮：逐一解壓 stream 再找
+  if(typeof DecompressionStream==="undefined") return null;
+  const re=/stream\r?\n/g; let r, n=0;
+  while((r=re.exec(latin)) && n++<800){
+    const start=r.index+r[0].length; let end=latin.indexOf("endstream", start); if(end<0) break;
+    re.lastIndex=end;
+    while(end>start && (bytes[end-1]===10 || bytes[end-1]===13)) end--;
+    try{
+      const out = await new Response(new Blob([bytes.slice(start,end)]).stream().pipeThrough(new DecompressionStream("deflate"))).arrayBuffer();
+      const m = new TextDecoder("latin1").decode(out).match(MARK_RE); if(m) return m[1];
+    }catch(e){}
+  }
+  return null;
+}
+// ===== 承辦人模式：網址加上 ?hq 才顯示（例：…/voucher-form/?hq） =====
+const HQ = new URLSearchParams(location.search).has("hq");
+if(!HQ){
+  $("loadSignedBtn").hidden = true;
+  document.querySelectorAll("details.card").forEach(d=>{
+    if(/凱惠|小總部|LINE/.test(d.querySelector("summary")?.textContent||"")) d.hidden = true;
+  });
+}
+function openHQSections(viewId){
+  const v=$(viewId); let first=null;
+  v.querySelectorAll("details.card").forEach(d=>{ const t=d.querySelector("summary")?.textContent||""; if(/凱惠|小總部|LINE/.test(t)){ d.open=true; if(!first && /凱惠|小總部/.test(t)) first=d; } });
+  first?.scrollIntoView({behavior:"smooth", block:"start"});
+  first?.querySelector("input,textarea")?.focus({preventScroll:true});
+}
+$("loadSignedBtn").onclick=()=>$("signedPdf").click();
+$("signedPdf").onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=""; if(!f) return;
+  try{
+    const code=await findVoucherData(await f.arrayBuffer());
+    if(!code){ toast("這份 PDF 讀不到原始填寫資料（可能是列印後掃描的檔案）。請用電子簽名的 PDF，或直接手動填寫。",true); return; }
+    const obj=JSON.parse(b64dec(code)); const data=obj && typeof obj.data==="object" ? obj.data : {};
+    if(obj.form==="dc"){ D=Object.assign(structuredClone(D_BLANK), data); dSave(); location.hash="#dc"; showView(); dFill(); openHQSections("viewD"); }
+    else { S=Object.assign(structuredClone(M_BLANK), data); mSave(); location.hash="#meijia"; showView(); mFill(); openHQSections("viewM"); }
+    toast("已載入「"+String((obj.form==="dc"?(data.cUnit||data.subject):data.subject)||f.name)+"」，填上券別序號後 LINE 訊息會自動產生");
+  }catch(err){ toast("讀取 PDF 失敗："+(err?.message||err),true); }
+};
 const blobToBase64 = blob => new Promise((ok,bad)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=bad; r.readAsDataURL(blob); });
 // 「送出給承辦人」目前不使用；要開啟就把下一行的 false 改成 true
 const SHOW_SUBMIT = false;
