@@ -166,9 +166,10 @@ table.inbox tr.done td{opacity:.55}
       <div class="row" style="justify-content:space-between"><h2><b>1</b>基本資料</h2><span id="exTag" class="example" hidden>目前是範例內容</span><button id="clearBtn" type="button">重填（回到範例）</button></div>
       <div class="grid3">
         <label class="f">申請品牌<select id="brand"></select></label>
-        <label class="f">申請單位<select id="unitSel"></select><input id="unitOther" type="text" placeholder="輸入申請單位" hidden></label>
+        <label class="f">申請單位<select id="unitSel"></select></label>
         <label class="f">申請日期<input id="date" type="date"></label>
       </div>
+      <input id="unitOther" type="text" placeholder="請輸入申請單位名稱（清單裡沒有的單位）" aria-label="自行輸入申請單位" hidden>
       <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl">券種</span>
         <div class="checks">
           <label><input type="radio" name="m_vType" value="three">好禮三選一</label>
@@ -205,8 +206,8 @@ table.inbox tr.done td{opacity:.55}
       <label class="f">固定規則（每行一條）<textarea id="rules" rows="6"></textarea></label>
       <button id="resetRules" type="button" style="align-self:flex-start">還原成標準 6 條</button>
       <div class="grid2">
-        <label class="f">商品提示：來源<input id="source" type="text" placeholder="例：線下通路活動"></label>
-        <label class="f">商品提示：大使<input id="ambassador" type="text" placeholder="例：信富家異業合作"></label>
+        <label class="f">商品提示：來源（點一下可選，也可自己打）<input id="source" type="text" list="sourceList" placeholder="不清楚可留空"></label>
+        <label class="f">商品提示：大使（點一下可選，也可自己打）<input id="ambassador" type="text" list="ambassadorList" placeholder="不清楚可留空"></label>
       </div>
       <label class="f">其他附註（每行一條，選填）<textarea id="extra" rows="2" placeholder="例：HC編號TW02809196/林朝陽"></textarea></label>
       <div style="display:flex;flex-direction:column;gap:6px">
@@ -389,6 +390,8 @@ table.inbox tr.done td{opacity:.55}
 <datalist id="unitList"><option value="信富家"><option value="數創部"><option value="好的行銷"></datalist>
 <datalist id="branchList"><option value="全台美加分院"><option value="全台DC分院"><option value="全台美加、DC分院"></datalist>
 <datalist id="applicantList"></datalist>
+<datalist id="sourceList"><option value="線下通路活動"><option value="專案活動"><option value="股東介紹(含股東)"><option value="(信富家)代言大使本人"><option value="(信富家)代言大使介紹"><option value="TM介紹(含同仁)"><option value="法布甜介紹(含同仁)"><option value="集團資源"></datalist>
+<datalist id="ambassadorList"><option value="信富家異業合作"><option value="專案好的行銷"><option value="數創部"></datalist>
 <datalist id="dcRegularList"><option value="好友分享券-全方位寶肝課程*1堂"><option value="DC頂級3合1券(寶肝活力點滴課程1堂＋身體老化指數檢測1堂＋高階血管風險檢測1堂)"><option value="保肝針*1堂"></datalist>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -413,9 +416,9 @@ async function copyText(txt, okMsg){
 // ===== 設定：把 Google Apps Script 部署後的網址貼在這裡 =====
 const CONFIG = {
   scriptUrl: "https://script.google.com/macros/s/AKfycbwWACfagUhTp-S23UDTyLhDGq8-gXGn6d3dSZOAIof8ySYc2r52VWzyFN-qLejPg4qpTQ/exec",
-  // false＝免費模式：複製指令到免費的 Claude／ChatGPT 聊天，再把回覆貼回來
-  // true ＝自動模式：需要在 Apps Script 設定 ANTHROPIC_API_KEY（付費）
-  enableAI: false
+  // true ＝直接生成：Apps Script 設定 GEMINI_API_KEY（Google AI Studio 免費金鑰）
+  // false＝複製模式：複製指令到免費的 Claude／ChatGPT 聊天，再把回覆貼回來
+  enableAI: true
 };
 async function callScript(payload, signal){
   const res = await fetch(CONFIG.scriptUrl, {method:"POST", body:JSON.stringify(payload), headers:{"Content-Type":"text/plain;charset=utf-8"}, signal});
@@ -467,6 +470,10 @@ function runAI({go, stop, out, briefEl, emptyMsg, prompt, apply}){
     $(out).after(paste);
     applyBtn.onclick=()=>{
       const o=$(out); o.hidden=false;
+      // 貼成「指令本身」而不是 AI 的回覆時擋下來（避免把欄位說明當內容填進去）
+      if(/只回傳一個 JSON|過去實際/.test(ta.value) || /"subject"\s*:\s*"主旨"/.test(ta.value)){
+        o.textContent="這段是「AI 指令」，不是 AI 的回覆。請先把指令貼到 Claude／ChatGPT／Gemini 送出，再把 AI 回答的那一段複製貼到這裡。"; return;
+      }
       const r=parseAIText(ta.value);
       if(!r || typeof r!=="object"){ o.textContent="看不懂這段回覆。請確認有把 AI 回覆的整段（包含 { } ）貼上，或請 AI「只回傳 JSON」再試一次。"; return; }
       const check=apply(r);
@@ -490,7 +497,7 @@ function runAI({go, stop, out, briefEl, emptyMsg, prompt, apply}){
       const check = apply(r);
       o.textContent = "已填入表單。" + (check ? "\n請確認：" + check : "");
     }catch(e){
-      o.textContent = AI_ERR[e?.code] || "AI 暫時無法回應，請再試一次。";
+      o.textContent = AI_ERR[e?.code] || ("AI 暫時無法回應，請再試一次。" + (e?.message ? "（" + String(e.message).slice(0,120) + "）" : ""));
       if(e?.code==="not_granted"||e?.code==="sampling_disabled") locked=true;
     }finally{ $(go).disabled=locked; $(stop).hidden=true; }
   };
@@ -619,11 +626,20 @@ $("unitSel").addEventListener("change",()=>{
 $("unitOther").addEventListener("input",()=>{ S.unit=$("unitOther").value; S._example=false; mSave(); mRender(); });
 const M_FIELDS = ["date","applicant","subject","styleOther","qty","purpose","rules","source","ambassador","extra","khName","khContent","khSerial","stPhysical","stLine","stOther","khAuto"];
 let S = load("voucher-draft", M_EXAMPLE);
+// 清掉之前誤把「AI 指令」貼回來時留下的欄位說明文字
+(function cleanPlaceholders(){
+  const bad=/^(主旨|申請目的與預估目標|商品提示的(來源|大使).*|其他附註.*|券別名稱（.*|券別內容|申請單位（.*）)$/;
+  let dirty=false;
+  ["subject","purpose","source","ambassador","extra","khName","khContent","unit"].forEach(k=>{ if(bad.test(String(S[k]||"").trim())){ S[k]=k==="extra"?"":(k==="subject"||k==="purpose"?M_EXAMPLE[k]:""); dirty=true; } });
+  if(dirty) try{ localStorage.setItem("voucher-draft", JSON.stringify(S)); }catch(e){}
+})();
 const mSave = ()=>store("voucher-draft", S);
 
 function ruleLines(){
   const L = S.rules.split("\n").map(s=>s.trim()).filter(Boolean);
-  if (S.source || S.ambassador) L.push("商品提示:來源:"+(S.source||"")+"，大使:"+(S.ambassador||""));
+  { const parts=[]; const src=String(S.source||"").trim(), amb=String(S.ambassador||"").trim();
+    if(src) parts.push("來源:"+src); if(amb) parts.push("大使:"+amb);
+    if(parts.length) L.push("商品提示:"+parts.join("，")); }
   S.extra.split("\n").map(s=>s.trim()).filter(Boolean).forEach(x=>L.push(x));
   L.push("期限:"+S.deadlines.filter(Boolean).map(roc).join("/"));
   return L;
@@ -770,7 +786,7 @@ ${M_AI_EXAMPLES}
 ${brief}
 
 只回傳一個 JSON 物件，欄位如下（不知道的欄位給空字串或空陣列，不要猜）：
-{"subject":"主旨","qty":"數字字串","branches":"可用分院：沒限定就給「全台美加分院」；有限定就只能從 ${MJ_BRANCHES.join("、")} 選，多家用、分隔（例：說台中＝台中向上、台中崇德；說台北＝台北仁愛）","purpose":"申請目的與預估目標","source":"商品提示的來源","ambassador":"商品提示的大使","extra":"其他附註，多條用\\n分隔","deadlines":["YYYY-MM-DD"],"khName":"券別名稱（通常是主旨去掉_申請開卷，可加金額如990）","khContent":"券別內容","vType":"券種：three＝好禮三選一（煥膚光療／保濕潤澤導入／針劑美白或護肝擇一），two990＝好禮二選一$990（12倍素顏光療／全方位護膚），都不是就給 custom；描述沒講清楚時用 two990","unit":"申請單位（描述有提到才填）","check":"一句話提醒申請人要再確認的地方，沒有就空字串"}`,
+{"subject":"主旨","qty":"數字字串","branches":"可用分院：沒限定就給「全台美加分院」；有限定就只能從 ${MJ_BRANCHES.join("、")} 選，多家用、分隔（例：說台中＝台中向上、台中崇德；說台北＝台北仁愛）","purpose":"申請目的與預估目標","source":"商品提示的來源，只能從這些選一個：線下通路活動、專案活動、股東介紹(含股東)、(信富家)代言大使本人、(信富家)代言大使介紹、TM介紹(含同仁)、法布甜介紹(含同仁)、集團資源；描述沒明講就給空字串","ambassador":"商品提示的大使，描述有明講才填，不確定就給空字串","extra":"其他附註（例如 HC 編號），描述有明講才填，多條用\\n分隔，沒有就空字串","deadlines":["YYYY-MM-DD"],"khName":"券別名稱（通常是主旨去掉_申請開卷，可加金額如990）","khContent":"券別內容","vType":"券種：three＝好禮三選一（煥膚光療／保濕潤澤導入／針劑美白或護肝擇一），two990＝好禮二選一$990（12倍素顏光療／全方位護膚），都不是就給 custom；描述沒講清楚時用 two990","unit":"申請單位（描述有提到才填）","check":"一句話提醒申請人要再確認的地方，沒有就空字串"}`,
   apply:r=>{
     ["subject","branches","purpose","source","ambassador","extra","khName","khContent","unit"].forEach(k=>{ const v=str(r[k]); if(v) S[k]=v; });
     const q=str(r.qty).replace(/[^\d]/g,""); if(q) S.qty=q;
