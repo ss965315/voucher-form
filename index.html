@@ -361,6 +361,15 @@ table.inbox tr.done td{opacity:.55}
   <div class="paperwrap"><article class="paper dc" id="dPaper" aria-label="康博簽呈預覽"></article></div>
 </main>
 
+<!-- 載入已簽 PDF 的結果 -->
+<div class="modal" id="loadModal" hidden>
+  <section class="card" role="alertdialog" aria-labelledby="lmTitle">
+    <h2 id="lmTitle"></h2>
+    <p id="lmText" style="margin:0;white-space:pre-wrap;line-height:1.7"></p>
+    <button id="lmOk" class="primary" type="button" style="align-self:flex-start">知道了</button>
+  </section>
+</div>
+
 <!-- 送出確認 -->
 <div class="modal" id="submitModal" hidden>
   <section class="card" role="dialog" aria-labelledby="smTitle">
@@ -1030,23 +1039,130 @@ if(!HQ){
     if(/凱惠|小總部|LINE/.test(d.querySelector("summary")?.textContent||"")) d.hidden = true;
   });
 }
+// ===== 讀 PDF 上的文字（舊的 Word／Excel 簽呈） =====
+const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+function loadScript(src){ return new Promise((ok,bad)=>{ const s=document.createElement("script"); s.src=src; s.onload=ok; s.onerror=()=>bad(new Error("無法載入 PDF 讀取工具，請檢查網路")); document.head.append(s); }); }
+async function pdfText(buf){
+  if(!window.pdfjsLib){ await loadScript(PDFJS_URL); await loadScript(PDFJS_WORKER); }
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  const doc = await window.pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+  let out="";
+  for(let i=1;i<=doc.numPages;i++){
+    const tc = await (await doc.getPage(i)).getTextContent();
+    let lastY=null;
+    for(const it of tc.items){
+      const y = it.transform ? Math.round(it.transform[5]) : null;
+      if(lastY!==null && y!==null && Math.abs(y-lastY)>3 && !out.endsWith("\n")) out+="\n";
+      out += it.str; if(it.hasEOL) out+="\n";
+      if(y!==null) lastY=y;
+    }
+    out+="\n";
+  }
+  return out;
+}
+const rocToIso = s => { const m=String(s||"").match(/(\d{2,4})[.\/\-年](\d{1,2})[.\/\-月](\d{1,2})/); if(!m) return ""; let y=+m[1]; if(y<1911) y+=1911; return y+"-"+String(m[2]).padStart(2,"0")+"-"+String(m[3]).padStart(2,"0"); };
+function parseFormText(raw){
+  // Word 轉的 PDF 常用「相容字」(例如另一個編碼的「數」)，只把這些字轉回一般中文字，標點保持原樣
+  const t = raw.replace(/[⺀-⿟豈-﫿]/g, c=>c.normalize("NFKC")).replace(/　/g," ").replace(/[ \t]+/g," ");
+  const LABEL = /申請目的|與預估目標|使用規則|申請人|申請單位|數量|樣式|可用|分院$/;
+  const one = (re) => { const m=t.match(re); return m ? m[1].replace(/\s+/g," ").trim() : ""; };
+  const block = (re) => { const m=t.match(re); return m ? m[1].split("\n").map(s=>s.trim()).filter(Boolean) : []; };
+  let count=0; const put=(o,k,v)=>{ if(v){ o[k]=v; count++; } };
+  if(/貴賓券申請書/.test(t)){
+    const d={vType:"custom", stPhysical:true, khAuto:false};
+    put(d,"brand", one(/申請品牌\s*(\S+)/));
+    put(d,"unit", one(/申請單位\s*([\s\S]*?)\s*申請日期/).replace(/\s+/g,""));
+    put(d,"date", rocToIso(one(/申請日期\s*([\d.\/\-]+)/)));
+    put(d,"subject", one(/申請主旨\s*([^\n]+)/));
+    put(d,"qty", one(/數量\s*(\d+)/));
+    const br = one(/\(美加\s*\/\s*DC\)\s*([^\n]+)/); if(br && !LABEL.test(br)) put(d,"branches", br);
+    put(d,"purpose", block(/與預估目標\s*\(請詳述\)\s*([\s\S]*?)\s*使用規則/).join(""));
+    const rules = block(/使用規則\s*\(請詳述\)\s*([\s\S]*?)\s*申請人簽名/);
+    const dl = rules.find(l=>/^期限/.test(l));
+    if(dl){ const ds=dl.replace(/^期限[:：]?/,"").split(/[\/、,]/).map(rocToIso).filter(Boolean); if(ds.length){ d.deadlines=ds; count++; } }
+    const hint = rules.find(l=>/^商品提示/.test(l));
+    if(hint){ d.source=(hint.match(/來源[:：]([^，,]*)/)||[])[1]||""; d.ambassador=(hint.match(/大使[:：](.*)$/)||[])[1]||""; }
+    const rest = rules.filter(l=>!/^期限|^商品提示/.test(l));
+    if(rest.length){ d.rules=rest.join("\n"); count++; }
+    put(d,"applicant", one(/申請人簽名\s*([^\n]+)/));
+    put(d,"khName", one(/券別名稱\s*([^\n]+)/));
+    put(d,"khContent", one(/券別內容\s*([^\n]+)/));
+    put(d,"khSerial", one(/券別序號\s*([^\n]+)/));
+    if(!d.qty) put(d,"qty", one(/總張數\s*(\d+)/));
+    if(!d.deadlines){ const e=rocToIso(one(/有效期限\s*([\d.\/\-]+)/)); if(e){ d.deadlines=[e]; count++; } }
+    d.branchSel = parseBranches(d.branches||"");
+    return count>=3 ? {form:"meijia", data:d, title:d.subject, count} : null;
+  }
+  if(/事業處簽呈/.test(t)){
+    const d={kind:"regular", vType:"custom", stPhysical:true};
+    put(d,"no", one(/簽呈編號[:：]?\s*(\d{8,})/));
+    put(d,"subject", one(/簡述簽呈主旨\s*([^\n]+)/));
+    put(d,"reason", block(/說明簽呈內容之原因或目的\s*([\s\S]*?)\s*(?:三、|$)/).join(""));
+    { const lines=t.split("\n").map(s=>s.trim()); const i=lines.findIndex(l=>/^為因應/.test(l));
+      if(i>=0){ const parts=[lines[i]]; for(let k=i+1;k<lines.length && k<i+4;k++){ const l=lines[k]; if(!l || /療程券|申請|附件|[一二三四五]、|[:：]/.test(l)) break; parts.push(l); } put(d,"detail", parts.join("")); } }
+    { const u = ALL_UNITS.concat(["信富家"]).find(n=>new RegExp("申請單位[\\s\\S]{0,40}"+n).test(t)) || one(/申請單位\s+([^\s]+)/);
+      if(u && !LABEL.test(u)) put(d,"unit", u); }
+    { const re=/申請人\s+([A-Za-z]+|[一-鿿]{2,4})(?=\s|$)/g; let m; while((m=re.exec(t))){ if(!/小總部|數量|簽名|填寫/.test(m[1])){ put(d,"person", m[1]); break; } } }
+    put(d,"signer", one(/申請人[:：]\s*([^\s\n]+)/));
+    put(d,"qty", one(/共\s*_*\s*(\d+)\s*_*\s*張/));
+    const reg = one(/常規[:：]\s*([^\n]+)/).replace(/[，,]\s*共\s*\d+\s*張\s*$/,"");
+    put(d,"regular", reg);
+    put(d,"expiry", rocToIso(one(/療程券期限[:：]\s*([\d.\/\-]+)/)));
+    put(d,"cUnit", one(/療程券單位[:：]\s*([^\n]+)/));
+    put(d,"cTarget", one(/療程券貴賓對象[:：]\s*([^\n]+)/));
+    put(d,"cPurpose", one(/使用目的[:：]\s*([^\n]+)/));
+    put(d,"serial", one(/券別序號\s*([A-Z]{2,}\d+\s*[-~～]\s*[A-Z]*\d+)/));
+    const lim = one(/[■☑]\s*限定\s*([^\n]*?)分院/);
+    d.areaSel = lim ? dParse(lim) : [];
+    return count>=3 ? {form:"dc", data:d, title:d.cUnit||d.subject, count} : null;
+  }
+  return null;
+}
 function openHQSections(viewId){
   const v=$(viewId); let first=null;
   v.querySelectorAll("details.card").forEach(d=>{ const t=d.querySelector("summary")?.textContent||""; if(/凱惠|小總部|LINE/.test(t)){ d.open=true; if(!first && /凱惠|小總部/.test(t)) first=d; } });
   first?.scrollIntoView({behavior:"smooth", block:"start"});
   first?.querySelector("input,textarea")?.focus({preventScroll:true});
 }
+function loadMsg(title, text){ $("lmTitle").textContent=title; $("lmText").textContent=text; $("loadModal").hidden=false; $("lmOk").focus(); }
+$("lmOk").onclick=()=>{ $("loadModal").hidden=true; };
 $("loadSignedBtn").onclick=()=>$("signedPdf").click();
 $("signedPdf").onchange=async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
+  const btn=$("loadSignedBtn"); const old=btn.textContent; btn.disabled=true; btn.textContent="讀取中…";
   try{
-    const code=await findVoucherData(await f.arrayBuffer());
-    if(!code){ toast("這份 PDF 讀不到原始填寫資料（可能是列印後掃描的檔案）。請用電子簽名的 PDF，或直接手動填寫。",true); return; }
+    const buf=await f.arrayBuffer();
+    let code=await findVoucherData(buf);
+    let text="";
+    if(!code){
+      try{ text=await pdfText(buf.slice(0)); }catch(e){ console.warn(e); }
+      const m=text.replace(/\s+/g,"").match(MARK_RE); if(m) code=m[1];
+    }
+    if(!code){
+      const parsed = text ? parseFormText(text) : null;
+      if(parsed){
+        if(parsed.form==="dc"){ D=Object.assign(structuredClone(D_BLANK), parsed.data); dSave(); location.hash="#dc"; showView(); dFill(); openHQSections("viewD"); }
+        else { S=Object.assign(structuredClone(M_BLANK), parsed.data); mSave(); location.hash="#meijia"; showView(); mFill(); openHQSections("viewM"); }
+        loadMsg("已從 PDF 文字讀出「"+String(parsed.title||f.name)+"」",
+          "這份是用 Word／Excel 做的簽呈，網站從 PDF 上的文字抓出了 "+parsed.count+" 個欄位。\n請核對一下內容（尤其是單位、期限、券別內容），再填券別序號、複製 LINE 訊息。");
+        return;
+      }
+      loadMsg("讀不到「"+f.name+"」的填寫內容",
+        "這份 PDF 沒有可讀的文字，常見原因：\n\n"+
+        "1. 主管是印出來手簽、再掃描（或拍照）成 PDF\n"+
+        "2. 不是美加貴賓券申請書或康博事業處簽呈的格式\n\n"+
+        "這一份請直接在下面手動填凱惠設定和 LINE 通知。");
+      openHQSections(view()==="dc"?"viewD":"viewM");
+      return;
+    }
     const obj=JSON.parse(b64dec(code)); const data=obj && typeof obj.data==="object" ? obj.data : {};
     if(obj.form==="dc"){ D=Object.assign(structuredClone(D_BLANK), data); dSave(); location.hash="#dc"; showView(); dFill(); openHQSections("viewD"); }
     else { S=Object.assign(structuredClone(M_BLANK), data); mSave(); location.hash="#meijia"; showView(); mFill(); openHQSections("viewM"); }
-    toast("已載入「"+String((obj.form==="dc"?(data.cUnit||data.subject):data.subject)||f.name)+"」，填上券別序號後 LINE 訊息會自動產生");
-  }catch(err){ toast("讀取 PDF 失敗："+(err?.message||err),true); }
+    loadMsg("已載入「"+String((obj.form==="dc"?(data.cUnit||data.subject):data.subject)||f.name)+"」",
+      "表單已還原成當初填寫的內容。\n下方已打開「凱惠系統設定」和「LINE 開券後通知訊息」，填上券別序號後就能複製 LINE 訊息。");
+  }catch(err){ loadMsg("讀取 PDF 失敗", String(err?.message||err)); }
+  finally{ btn.disabled=false; btn.textContent=old; }
 };
 const blobToBase64 = blob => new Promise((ok,bad)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=bad; r.readAsDataURL(blob); });
 // 「送出給承辦人」目前不使用；要開啟就把下一行的 false 改成 true
