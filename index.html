@@ -397,8 +397,10 @@ async function copyText(txt, okMsg){
 }
 // ===== 設定：把 Google Apps Script 部署後的網址貼在這裡 =====
 const CONFIG = {
-  scriptUrl: "https://script.google.com/macros/s/AKfycbwWACfagUhTp-S23UDTyLhDGq8-gXGn6d3dSZOAIof8ySYc2r52VWzyFN-qLejPg4qpTQ/exec",      // 例："https://script.google.com/macros/s/XXXX/exec"
-  enableAI: true      // Apps Script 有設定 ANTHROPIC_API_KEY 才會真的啟用
+  scriptUrl: "https://script.google.com/macros/s/AKfycbwWACfagUhTp-S23UDTyLhDGq8-gXGn6d3dSZOAIof8ySYc2r52VWzyFN-qLejPg4qpTQ/exec",
+  // false＝免費模式：複製指令到免費的 Claude／ChatGPT 聊天，再把回覆貼回來
+  // true ＝自動模式：需要在 Apps Script 設定 ANTHROPIC_API_KEY（付費）
+  enableAI: false
 };
 async function callScript(payload, signal){
   const res = await fetch(CONFIG.scriptUrl, {method:"POST", body:JSON.stringify(payload), headers:{"Content-Type":"text/plain;charset=utf-8"}, signal});
@@ -417,7 +419,13 @@ const sample = (CONFIG.scriptUrl && CONFIG.enableAI) ? {
     throw {code:"invalid_json"};
   }
 } : null;
-if(!sample) document.querySelectorAll(".aiCard").forEach(c=>c.hidden=true);
+function parseAIText(t){
+  t=String(t||"").trim();
+  try { return JSON.parse(t); } catch(_) {}
+  const fence=t.match(/```(?:json)?\s*([\s\S]*?)```/); if(fence){ try { return JSON.parse(fence[1]); } catch(_){} }
+  const m=t.match(/\{[\s\S]*\}/); if(m){ try { return JSON.parse(m[0]); } catch(_){} }
+  return null;
+}
 async function saveFile(name, blob){
   const url = URL.createObjectURL(blob);
   const a = h("a",{href:url, download:name}); document.body.append(a); a.click(); a.remove();
@@ -429,10 +437,37 @@ const AI_ERR = {cancelled:"已停止。",not_granted:"AI 擬稿還沒啟用（�
 function runAI({go, stop, out, briefEl, emptyMsg, prompt, apply}){
   let ctl=null, locked=false;
   $(stop).onclick=()=>ctl?.abort();
+  // 免費模式：複製指令 → 貼到免費 AI 聊天 → 把回覆貼回來
+  let paste=null;
+  if(!sample){
+    $(go).textContent="複製 AI 指令";
+    const ta=h("textarea",{id:go+"Paste",rows:"4",placeholder:"把 AI 的回覆整段貼在這裡"});
+    const applyBtn=h("button",{type:"button",class:"primary"},"套用到表單");
+    const links=h("p",{class:"hint"},"打開免費 AI：",
+      h("a",{href:"https://claude.ai/new",target:"_blank",rel:"noopener"},"Claude"),"　",
+      h("a",{href:"https://chatgpt.com/",target:"_blank",rel:"noopener"},"ChatGPT"),"　",
+      h("a",{href:"https://gemini.google.com/",target:"_blank",rel:"noopener"},"Gemini"));
+    paste=h("div",{style:"display:flex;flex-direction:column;gap:8px"},links,ta,applyBtn);
+    paste.hidden=true;
+    $(out).after(paste);
+    applyBtn.onclick=()=>{
+      const o=$(out); o.hidden=false;
+      const r=parseAIText(ta.value);
+      if(!r || typeof r!=="object"){ o.textContent="看不懂這段回覆。請確認有把 AI 回覆的整段（包含 { } ）貼上，或請 AI「只回傳 JSON」再試一次。"; return; }
+      const check=apply(r);
+      o.textContent="已填入表單。"+(check?"\n請確認："+check:"");
+      ta.value=""; paste.hidden=true;
+    };
+  }
   $(go).onclick=async()=>{
     const brief=$(briefEl).value.trim(); const o=$(out); o.hidden=false;
     if(!brief){ o.textContent=emptyMsg; return; }
-    if(!sample){ o.textContent="這個檢視不能使用 AI，請直接填表。"; return; }
+    if(!sample){
+      await copyText(prompt(brief)+"\n\n（請只回傳 JSON，不要其他文字。）","已複製 AI 指令");
+      o.textContent="已複製 AI 指令。\n1. 點下面任一個免費 AI，貼上（Ctrl+V）後送出。\n2. 把 AI 的回覆整段複製，貼到下面的框，按「套用到表單」。";
+      paste.hidden=false;
+      return;
+    }
     ctl=new AbortController(); $(go).disabled=true; $(stop).hidden=false; o.textContent="AI 擬稿中…";
     try{
       const r = await sample.json(prompt(brief), {signal:ctl.signal, onText:()=>{ o.textContent="AI 擬稿中…（正在寫）"; }});
