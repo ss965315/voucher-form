@@ -1045,13 +1045,11 @@ function renderSearch(results, q){
     const head=h("div",{class:"row",style:"justify-content:space-between"},
       h("strong",{style:"font-size:16px"}, r["券別名稱"]||r["主旨"]||"(未命名)"),
       h("span",{class:"example",style: expired?"":"background:var(--line-soft);color:var(--ok)"}, expired?"已過期":"有效"));
-    const grid=h("div",{class:"grid3"},
+    const grid=h("div",{class:"grid2"},
       sqField("券號範圍", r["券號範圍"]),
       sqField("有效期限", r["有效期限"]+(expired?"（已過期）":""), expired),
-      sqField("張數", r["張數"]),
       sqField("來源", r["來源"]),
-      sqField("大使", r["大使"]),
-      sqField("申請單位", [r["申請品牌"], r["申請單位"]].filter(Boolean).join(" / ")));
+      sqField("大使", r["大使"]));
     const extra=h("div",{style:"display:flex;flex-direction:column;gap:6px"},
       sqField("券別內容", r["券別內容"]), sqField("主旨", r["主旨"]),
       h("span",{class:"hint"},"登記時間："+(r["登記時間"]||"")+(r["表單"]?"　表單："+r["表單"]:"")));
