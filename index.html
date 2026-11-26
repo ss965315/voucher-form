@@ -238,6 +238,8 @@ table.inbox tr.done td{opacity:.55}
       <label class="f">券別內容<input id="khContent" type="text" placeholder="例：好禮二選一(A.12倍素顏光療一堂原價3000 B.全方位護膚一堂原價3500)"></label>
       <label class="f">券別序號<textarea id="khSerial" rows="2" placeholder="例：MSF32001-MSF33000"></textarea></label>
       <label class="row" style="font-size:13px;color:var(--muted)"><input id="khAuto" type="checkbox">總張數與有效期限照上面自動帶入</label>
+      <p class="hint" id="mSignedHint" hidden></p>
+      <button id="mSignedDl" class="primary" type="button" style="align-self:flex-start" hidden>下載已簽 PDF（含凱惠設定）</button>
     </details>
 
     <details class="card">
@@ -349,6 +351,8 @@ table.inbox tr.done td{opacity:.55}
       <label class="f">券別序號<input id="d_serial" type="text" placeholder="例：DEE04891-DEE04990"></label>
       <label class="f">券別名稱（LINE 通知用）<input id="d_vName" type="text" placeholder="留空會用療程券單位"></label>
       <label class="f">券別內容（LINE 通知用）<input id="d_vContent" type="text" placeholder="留空會用常規內容"></label>
+      <p class="hint" id="dSignedHint" hidden></p>
+      <button id="dSignedDl" class="primary" type="button" style="align-self:flex-start" hidden>下載已簽 PDF（含券別序號）</button>
     </details>
 
     <details class="card">
@@ -658,7 +662,8 @@ function mRender(){
   p.append(h("div",{class:"gm"},"以下由品牌總經理填寫",h("p",null,"1.申請是否通過?　"+g[0]+" 通過　"+g[1]+"未通過，須修正"),h("p",null,"2.決議本次使用的券別類型　"+g[2]+"通用貴賓券　"+g[3]+"客製貴賓券")));
   const sig = h("table",{class:"sig"}); sig.append(h("tr",null,h("th",{style:"width:33%"},"品牌總經理簽名"),h("th",null,"品牌總經理備註")),h("tr",null,h("td"),h("td")));
   p.append(sig, h("hr"), h("p",{class:"note"},"*以下由總部專案人員填寫"), h("div",{class:"kh"},"凱惠系統設定資料"));
-  const kt = h("table",{class:"kh-t"}); khRows().forEach(([k,v],i)=>kt.append(h("tr",i%2?{class:"shade"}:null,h("td",{class:"k"},k),h("td",null,v?linesEl(v.split("\n")):val("")))));
+  const KH_KEYS=["khName","khTotal","khContent","khSerial","khExpiry"];
+  const kt = h("table",{class:"kh-t"}); khRows().forEach(([k,v],i)=>kt.append(h("tr",i%2?{class:"shade"}:null,h("td",{class:"k"},k),h("td",{"data-hq":KH_KEYS[i]},v?linesEl(v.split("\n")):val("")))));
   p.append(kt, h("p",{class:"foot"},"※本申請書審核通過後由會計部留存並通知申請單位與公告單位進行公告佈達。"));
   $("exTag").hidden = !S._example;
   $("mLine").textContent = mLineText();
@@ -860,7 +865,7 @@ function dRender(){
     h("tr",null,h("td",{colspan:4,class:"g top"},dA12()),h("td",{colspan:3,class:"g top"},dG12())),
     h("tr",null,h("td",{colspan:7,class:"y",style:"height:72px"},dA13())),
     h("tr",null,h("td",{class:"b"},"事業處總經理簽名填寫"),h("td",{class:"b",style:"text-align:center"},"核決"),h("td",{class:"b",colspan:2},"□通過\n□未通過，修正如右側"),h("td",{class:"b",colspan:3},"□療程券張數，調整為______\n□療程券種類，調整為__________\n□其他，補充________________")),
-    h("tr",null,h("td",{colspan:2},"小總部填寫(凱惠系統設定)"),h("td",{colspan:2,style:"text-align:center"},"券別序號"),h("td",{colspan:3},D.serial))
+    h("tr",null,h("td",{colspan:2},"小總部填寫(凱惠系統設定)"),h("td",{colspan:2,style:"text-align:center"},"券別序號"),h("td",{colspan:3,"data-hq":"serial"},D.serial))
   );
   p.append(t,
     h("p",{class:"plain"},"如奉　核可，逕行辦理後續作業。"),
@@ -1001,8 +1006,15 @@ async function makePdfBlob(){
     let w=pw-2*m, hh=canvas.height*w/canvas.width;
     if(hh>ph-2*m){ hh=ph-2*m; w=canvas.width*hh/canvas.height; }
     pdf.addImage(canvas.toDataURL("image/jpeg",0.95), "JPEG", (pw-w)/2, m, w, hh);
+    // 記下凱惠欄位在 PDF 上的位置（單位 pt），之後可把凱惠設定寫回已簽的 PDF
+    const k=72/25.4, P=el.getBoundingClientRect(), pos={};
+    el.querySelectorAll("[data-hq]").forEach(td=>{
+      const r=td.getBoundingClientRect();
+      const x=(pw-w)/2+(r.left-P.left)/P.width*w, yt=m+(r.top-P.top)/P.height*hh, cw=r.width/P.width*w, ch=r.height/P.height*hh;
+      pos[td.dataset.hq]=[+(x*k).toFixed(1), +((ph-yt-ch)*k).toFixed(1), +(cw*k).toFixed(1), +(ch*k).toFixed(1)];
+    });
     // 把填寫內容藏在 PDF 裡，主管簽完載回來時可以還原表單
-    const payload = b64enc(JSON.stringify({v:1, form:view(), data: view()==="dc" ? D : S}));
+    const payload = b64enc(JSON.stringify({v:1, form:view(), data: view()==="dc" ? D : S, pos}));
     pdf.setProperties({title: baseName(), subject:"開券簽呈產生器", creator:"開券簽呈產生器", keywords: MARK+payload});
     pdf.setTextColor(255,255,255); pdf.setFontSize(1); pdf.text(MARK+payload, 1, ph-1);
     return pdf.output("blob");
@@ -1043,13 +1055,130 @@ if(!HQ){
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 function loadScript(src){ return new Promise((ok,bad)=>{ const s=document.createElement("script"); s.src=src; s.onload=ok; s.onerror=()=>bad(new Error("無法載入 PDF 讀取工具，請檢查網路")); document.head.append(s); }); }
+let lastPdfPage=null;
+const compat = s => String(s||"").replace(/[⺀-⿟豈-﫿]/g, c=>c.normalize("NFKC"));
+
+// ===== 已簽 PDF：把凱惠設定寫回去（保留主管簽名） =====
+const PDFLIB_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
+let signed=null;   // {buf, name, form, pos}
+const HQ_LABELS = {meijia:{khName:"券別名稱", khTotal:"總張數", khContent:"券別內容", khSerial:"券別序號", khExpiry:"有效期限"}, dc:{serial:"券別序號"}};
+function textPositions(form){
+  const pg=lastPdfPage; if(!pg) return null;
+  const labels=HQ_LABELS[form]; const found={};
+  for(const key in labels){
+    const lab=labels[key];
+    const hits=pg.items.filter(it=>it.str.replace(/\s/g,"")===lab || (it.str.replace(/\s/g,"").startsWith(lab) && it.str.replace(/\s/g,"").length<=lab.length+1));
+    if(hits.length) found[key]=hits[hits.length-1];
+  }
+  const keys=Object.keys(found); if(!keys.length) return null;
+  const minX=Math.min(...pg.items.map(it=>it.x));
+  const ys=keys.map(k=>found[k].y).sort((a,b)=>b-a); const diffs=[]; for(let i=1;i<ys.length;i++) diffs.push(ys[i-1]-ys[i]);
+  const size=found[keys[0]].h||11;
+  const rowH = diffs.length ? diffs.sort((a,b)=>a-b)[Math.floor(diffs.length/2)] : size*2.4;
+  const xEnd = pg.w-(minX-8)-6;
+  const valXs=[]; const pos={};
+  for(const k of keys){ const L=found[k]; const right=pg.items.filter(it=>Math.abs(it.y-L.y)<size*0.6 && it.x>L.x+L.w+8 && it.str.trim()); if(right.length) valXs.push(Math.min(...right.map(it=>it.x))); }
+  if(!valXs.length){
+    // 凱惠表格整個空白：用上方「申請主旨」那一列內容的起點當作文字起點（兩個表格欄寬相同）
+    const ref=pg.items.find(it=>/^申請主旨$|^簡述簽呈主旨/.test(it.str.replace(/\s/g,"")));
+    if(ref){ const r=pg.items.filter(it=>Math.abs(it.y-ref.y)<size*0.6 && it.x>ref.x+ref.w+8 && it.str.trim()); if(r.length) valXs.push(Math.min(...r.map(it=>it.x))); }
+  }
+  for(const k of keys){
+    const L=found[k];
+    const right=pg.items.filter(it=>Math.abs(it.y-L.y)<size*0.6 && it.x>L.x+L.w+8 && it.str.trim());
+    const vx = right.length ? Math.min(...right.map(it=>it.x)) : (valXs.length ? Math.min(...valXs) : L.x+L.w+40);
+    const cy=L.y+size*0.35, hgt=Math.min(rowH*0.72, size*2.0);
+    // 只蓋住原本的文字（不碰表格框線）；新文字較長時最多延伸到版面 89% 寬
+    const oldEnd = right.length ? Math.max(...right.map(it=>it.x+it.w)) : vx;
+    const cap = Math.max(oldEnd-(vx-4)+4, Math.min(xEnd, pg.w*0.89)-(vx-4));
+    pos[k]=[vx-4, cy-hgt/2, oldEnd-(vx-4)+4, hgt, cap];
+  }
+  return pos;
+}
+async function textImage(str, pt){
+  const sc=4, c=document.createElement("canvas"), ctx=c.getContext("2d");
+  const font=`${pt*sc}px "DFKai-SB","BiauKai","標楷體","Noto Serif TC",serif`;
+  ctx.font=font; const w=Math.ceil(ctx.measureText(str).width)+6;
+  c.width=w; c.height=Math.ceil(pt*sc*1.4);
+  ctx.font=font; ctx.fillStyle="#000"; ctx.textBaseline="middle"; ctx.fillText(str,2,c.height/2);
+  const blob=await new Promise(r=>c.toBlob(r,"image/png"));
+  return {bytes:new Uint8Array(await blob.arrayBuffer()), w:c.width/sc, h:c.height/sc};
+}
+function hqValues(form){
+  return form==="dc" ? {serial:String(D.serial||"").trim()} : {
+    khName:S.khName, khTotal:S.qty?S.qty+"張":"", khContent:S.khContent,
+    khSerial:String(S.khSerial||"").replace(/\s*\n\s*/g," "), khExpiry:S.deadlines.filter(Boolean).map(dot).join("/")
+  };
+}
+function updateSignedUI(){
+  [["meijia","mSignedDl","mSignedHint"],["dc","dSignedDl","dSignedHint"]].forEach(([f,b,hn])=>{
+    const on = !!signed && signed.form===f;
+    $(b).hidden=!on; $(hn).hidden=!on;
+    if(on) $(hn).textContent="已載入簽核檔：「"+signed.name+"」。填好後按下面的按鈕，會在原本的 PDF 上補上"+(f==="dc"?"券別序號":"凱惠系統設定")+"，主管簽名保留。"+(signed.pos?"":"（這份找不到表格位置，會另外加一頁）");
+  });
+}
+async function exportSigned(){
+  if(!signed) return;
+  if(!window.PDFLib) await loadScript(PDFLIB_URL);
+  const {PDFDocument, rgb, StandardFonts} = window.PDFLib;
+  const doc = await PDFDocument.load(signed.buf.slice(0), {ignoreEncryption:true});
+  const vals = hqValues(signed.form);
+  const page = doc.getPages()[0];
+  if(document.fonts?.ready) await document.fonts.ready;
+  // 取樣每格原本的底色（灰底列用灰色蓋，不會出現白塊）
+  const bg={};
+  if(signed.pos){
+    try{
+      if(!window.pdfjsLib){ await loadScript(PDFJS_URL); await loadScript(PDFJS_WORKER); window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER; }
+      const pd=await window.pdfjsLib.getDocument({data:new Uint8Array(signed.buf.slice(0))}).promise;
+      const pg=await pd.getPage(1); const vp=pg.getViewport({scale:2});
+      const cv=document.createElement("canvas"); cv.width=vp.width; cv.height=vp.height; const cx=cv.getContext("2d");
+      await pg.render({canvasContext:cx, viewport:vp}).promise;
+      for(const key in signed.pos){ const [x,y,,h]=signed.pos[key]; const [px,py]=vp.convertToViewportPoint(x+2.2, y+h/2); const d=cx.getImageData(Math.round(px),Math.round(py),1,1).data; bg[key]=rgb(d[0]/255,d[1]/255,d[2]/255); }
+    }catch(e){ console.warn("bg sample", e); }
+  }
+  if(signed.pos){
+    for(const key in vals){
+      const p=signed.pos[key]; const v=String(vals[key]||"").trim(); if(!p || !v) continue;
+      const [x,y,w0,h,cap]=p;
+      const textMode = p.length>4;                       // Word/Excel PDF：只蓋原本文字
+      const inset = textMode ? 0 : 1.6;
+      let pt=Math.min(11, h*0.55); let img=await textImage(v, pt);
+      const maxW = textMode ? cap : w0;
+      if(img.w > maxW-8){ pt=pt*(maxW-8)/img.w; img=await textImage(v, pt); }
+      const w = textMode ? Math.min(cap, Math.max(w0, img.w+8)) : w0;
+      page.drawRectangle({x:x+inset, y:y+inset, width:w-inset*2, height:h-inset*2, color:bg[key]||rgb(1,1,1)});
+      const png=await doc.embedPng(img.bytes);
+      page.drawImage(png, {x:x+(textMode?2:5), y:y+(h-img.h)/2, width:img.w, height:img.h});
+    }
+  }else{
+    const {width, height} = page.getSize();
+    const np = doc.addPage([width, height]);
+    const labels = HQ_LABELS[signed.form]; let yy=height-80;
+    const title=await textImage(signed.form==="dc"?"小總部填寫（凱惠系統設定）":"凱惠系統設定資料", 16);
+    np.drawImage(await doc.embedPng(title.bytes), {x:60, y:yy, width:title.w, height:title.h}); yy-=40;
+    for(const key in labels){
+      const line=await textImage(labels[key]+"："+String(vals[key]||""), 12);
+      np.drawImage(await doc.embedPng(line.bytes), {x:60, y:yy, width:Math.min(line.w, width-120), height:line.h*Math.min(1,(width-120)/line.w)}); yy-=28;
+    }
+  }
+  const out = await doc.save();
+  await saveFile(signed.name.replace(/\.pdf$/i,"")+"_"+(signed.form==="dc"?"含券別序號":"含凱惠設定")+".pdf", new Blob([out],{type:"application/pdf"}));
+}
+["mSignedDl","dSignedDl"].forEach(id=>{ $(id).onclick=async()=>{ const b=$(id), old=b.textContent; b.disabled=true; b.textContent="產生中…"; try{ await exportSigned(); }catch(e){ loadMsg("產生 PDF 失敗", String(e?.message||e)); } finally{ b.disabled=false; b.textContent=old; } }; });
+
 async function pdfText(buf){
   if(!window.pdfjsLib){ await loadScript(PDFJS_URL); await loadScript(PDFJS_WORKER); }
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
   const doc = await window.pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
   let out="";
   for(let i=1;i<=doc.numPages;i++){
-    const tc = await (await doc.getPage(i)).getTextContent();
+    const page = await doc.getPage(i);
+    const tc = await page.getTextContent();
+    if(i===1){
+      const vp=page.getViewport({scale:1});
+      lastPdfPage={w:vp.width, h:vp.height, items:tc.items.filter(it=>it.transform).map(it=>({str:compat(it.str), x:it.transform[4], y:it.transform[5], w:it.width||0, h:it.height||Math.abs(it.transform[3])||10}))};
+    }
     let lastY=null;
     for(const it of tc.items){
       const y = it.transform ? Math.round(it.transform[5]) : null;
@@ -1133,14 +1262,17 @@ $("signedPdf").onchange=async e=>{
   const btn=$("loadSignedBtn"); const old=btn.textContent; btn.disabled=true; btn.textContent="讀取中…";
   try{
     const buf=await f.arrayBuffer();
+    const keep=buf.slice(0);
     let code=await findVoucherData(buf);
-    let text="";
+    let text=""; lastPdfPage=null;
     if(!code){
       try{ text=await pdfText(buf.slice(0)); }catch(e){ console.warn(e); }
       const m=text.replace(/\s+/g,"").match(MARK_RE); if(m) code=m[1];
     }
     if(!code){
       const parsed = text ? parseFormText(text) : null;
+      signed = {buf:keep, name:f.name, form: parsed ? parsed.form : (view()==="dc"?"dc":"meijia"), pos:null};
+      signed.pos = textPositions(signed.form);
       if(parsed){
         if(parsed.form==="dc"){ D=Object.assign(structuredClone(D_BLANK), parsed.data); dSave(); location.hash="#dc"; showView(); dFill(); openHQSections("viewD"); }
         else { S=Object.assign(structuredClone(M_BLANK), parsed.data); mSave(); location.hash="#meijia"; showView(); mFill(); openHQSections("viewM"); }
@@ -1157,12 +1289,13 @@ $("signedPdf").onchange=async e=>{
       return;
     }
     const obj=JSON.parse(b64dec(code)); const data=obj && typeof obj.data==="object" ? obj.data : {};
+    signed = {buf:keep, name:f.name, form: obj.form==="dc"?"dc":"meijia", pos: obj.pos && typeof obj.pos==="object" ? obj.pos : null};
     if(obj.form==="dc"){ D=Object.assign(structuredClone(D_BLANK), data); dSave(); location.hash="#dc"; showView(); dFill(); openHQSections("viewD"); }
     else { S=Object.assign(structuredClone(M_BLANK), data); mSave(); location.hash="#meijia"; showView(); mFill(); openHQSections("viewM"); }
     loadMsg("已載入「"+String((obj.form==="dc"?(data.cUnit||data.subject):data.subject)||f.name)+"」",
       "表單已還原成當初填寫的內容。\n下方已打開「凱惠系統設定」和「LINE 開券後通知訊息」，填上券別序號後就能複製 LINE 訊息。");
   }catch(err){ loadMsg("讀取 PDF 失敗", String(err?.message||err)); }
-  finally{ btn.disabled=false; btn.textContent=old; }
+  finally{ btn.disabled=false; btn.textContent=old; updateSignedUI(); }
 };
 const blobToBase64 = blob => new Promise((ok,bad)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=bad; r.readAsDataURL(blob); });
 // 「送出給承辦人」目前不使用；要開啟就把下一行的 false 改成 true
