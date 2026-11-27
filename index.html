@@ -1043,10 +1043,12 @@ function sqField(label, value, warn){
 const GIFT_OPTIONS = {
   three: ["A. 煥膚光療", "B. 保濕潤澤導入", "C. 針劑（美白／護肝擇一）"],
   two990: ["A. 12倍素顏光療一堂（原價 3000）", "B. 全方位護膚一堂（原價 3500）"],
-  hsinchu1990: ["A. 皮秒雷射 1 堂", "B. 肉毒 1 區", "C. 晶透水肌光深層潔淨養膚課程"]
+  hsinchu1990: ["A. 皮秒雷射 1 堂", "B. 肉毒 1 區", "C. 晶透水肌光深層潔淨養膚課程"],
+  gumumu: ["A. 奈秒雷射（$3500）", "B. AMP術後專用修護課程（$3200）"]
 };
-function giftOptions(content){
+function giftOptions(content, name){
   const c = String(content||"");
+  if (/谷慕慕|谷慕幕/.test(c + " " + String(name||""))) return {title:"好禮二選一，谷慕慕異業合作", items:GIFT_OPTIONS.gumumu};
   if (/1990特殊三選一/.test(c)) return {title:"1990特殊三選一，限新竹光明", items:GIFT_OPTIONS.hsinchu1990};
   if (/特殊/.test(c) || /A\s*[.．]/.test(c)) return null;          // 特殊券、或內容已列出項目
   if (/三選一/.test(c)) return {title:"好禮三選一", items:GIFT_OPTIONS.three};
@@ -1068,7 +1070,7 @@ function renderSearch(results, q){
       sqField("有效期限", r["有效期限"]+(expired?"（已過期）":""), expired),
       sqField("來源", r["來源"]),
       sqField("大使", r["大使"]));
-    const g=giftOptions(r["券別內容"]);
+    const g=giftOptions(r["券別內容"], r["券別名稱"]);
     const giftBox = g ? h("div",{style:"border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel);display:flex;flex-direction:column;gap:4px"},
       h("span",{class:"lbl"},"可選好禮（"+g.title+"，擇一）"),
       ...g.items.map(t=>h("span",{style:"font-weight:500"},t))) : null;
