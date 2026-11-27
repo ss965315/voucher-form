@@ -1044,11 +1044,13 @@ const GIFT_OPTIONS = {
   three: ["A. 煥膚光療", "B. 保濕潤澤導入", "C. 針劑（美白／護肝擇一）"],
   two990: ["A. 12倍素顏光療一堂（原價 3000）", "B. 全方位護膚一堂（原價 3500）"],
   hsinchu1990: ["A. 皮秒雷射 1 堂", "B. 肉毒 1 區", "C. 晶透水肌光深層潔淨養膚課程"],
-  gumumu: ["A. 奈秒雷射（$3500）", "B. AMP術後專用修護課程（$3200）"]
+  gumumu: ["A. 奈秒雷射（$3500）", "B. AMP術後專用修護課程（$3200）"],
+  skin990: ["A. 奈秒雷射 1 堂", "B. FA極緻臉部保養課程 1 堂"]
 };
 function giftOptions(content, name){
   const c = String(content||"");
   if (/谷慕慕|谷慕幕/.test(c + " " + String(name||""))) return {title:"好禮二選一，谷慕慕異業合作", items:GIFT_OPTIONS.gumumu};
+  if (/990\s*[（(]\s*淨膚\s*[\/／]\s*護膚/.test(c)) return {title:"$990 淨膚／護膚二選一", items:GIFT_OPTIONS.skin990};
   if (/1990特殊三選一/.test(c)) return {title:"1990特殊三選一，限新竹光明", items:GIFT_OPTIONS.hsinchu1990};
   if (/特殊/.test(c) || /A\s*[.．]/.test(c)) return null;          // 特殊券、或內容已列出項目
   if (/三選一/.test(c)) return {title:"好禮三選一", items:GIFT_OPTIONS.three};
