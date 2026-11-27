@@ -1316,7 +1316,9 @@ async function exportSigned(){
   const out = await doc.save();
   // 有券別序號就順便登記到券號資料庫（失敗不影響下載）
   if(CONFIG.scriptUrl) registerCurrent(signed.form, true).catch(e=>console.warn("register", e));
-  await saveFile(signed.name.replace(/\.pdf$/i,"")+"_"+(signed.form==="dc"?"含券別序號":"含凱惠設定")+".pdf", new Blob([out],{type:"application/pdf"}));
+  const outBlob = new Blob([out],{type:"application/pdf"});
+  await saveFile(signed.name.replace(/\.pdf$/i,"")+"_"+(signed.form==="dc"?"含券別序號":"含凱惠設定")+".pdf", outBlob);
+  autoClose(signed.form, outBlob).catch(e=>console.warn("close", e));
 }
 ["mSignedDl","dSignedDl"].forEach(id=>{ $(id).onclick=async()=>{ const b=$(id), old=b.textContent; b.disabled=true; b.textContent="產生中…"; try{ await exportSigned(); }catch(e){ loadMsg("產生 PDF 失敗", String(e?.message||e)); } finally{ b.disabled=false; b.textContent=old; } }; });
 
@@ -1499,17 +1501,27 @@ async function autoNotify(pdf){
   const text = isDC ? dPlain() : mPlain();
   let sig=""; try{ sig = String(text.length)+":"+text.slice(0,200)+text.slice(-200); }catch(e){}
   try{ if(localStorage.getItem("last-notified")===sig) return; }catch(e){}
-  const who = (isDC ? (st.signer||st.person) : st.applicant) || "（未填申請人）";
   await callScript({
-    action:"submit",
-    form: isDC?"康博 事業處簽呈":"美加 貴賓券申請書",
-    title: isDC ? (st.cUnit||st.subject) : st.subject,
-    unit: [st.brand, st.unit].filter(Boolean).join(" / "),
-    submitter: who, note: "門店下載 PDF 時自動通知",
+    action:"submit", ...notifyInfo(isDC), note: "門店下載 PDF 時自動通知",
     pdfName: baseName()+".pdf", pdf: await blobToBase64(pdf),
     fileName: null, file: null
   });
   try{ localStorage.setItem("last-notified", sig); }catch(e){}
+}
+// 送出與結案用同一組欄位，紀錄表才對得起來
+function notifyInfo(isDC){
+  const st = isDC ? D : S;
+  return {
+    form: isDC?"康博 事業處簽呈":"美加 貴賓券申請書",
+    title: isDC ? (st.cUnit||st.subject) : st.subject,
+    unit: [st.brand, st.unit].filter(Boolean).join(" / "),
+    submitter: (isDC ? (st.signer||st.person) : st.applicant) || "（未填申請人）"
+  };
+}
+// 承辦人下載「含凱惠設定／含券別序號」PDF 時：紀錄表自動標「已結案」並存一份結案 PDF
+async function autoClose(form, pdf){
+  if(!HQ || !CONFIG.scriptUrl) return;
+  await callScript({ action:"close", ...notifyInfo(form==="dc"), pdf: await blobToBase64(pdf) });
 }
 $("pdfBtn").onclick=async()=>{
   const btn=$("pdfBtn"); btn.disabled=true; const old=btn.textContent; btn.textContent="產生中…";
