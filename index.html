@@ -94,6 +94,9 @@ details.card summary{cursor:pointer;font-size:14px;color:var(--muted);font-weigh
 .paper .kh-t td{padding:8px 12px}
 .paper .foot{font-weight:700;margin-top:16px;font-size:14px}
 .paper .empty{color:#aaa}
+.signedPrev{max-width:820px;margin:0 auto}
+.signedPrev .tag{font-size:13px;margin:0 0 8px;padding:6px 10px;border-radius:6px;background:#fff4d6;color:#6b4e00}
+.signedPrev canvas{display:block;width:100%;height:auto;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.15);margin-bottom:12px}
 .paper.capturing{box-shadow:none;border-radius:0}
 .tablewrap{overflow-x:auto;min-width:0}
 table.inbox{width:100%;border-collapse:collapse;font-size:14px;min-width:820px}
@@ -242,6 +245,7 @@ table.inbox tr.done td{opacity:.55}
       <label class="f">券別序號<textarea id="khSerial" rows="2" placeholder="例：MSF32001-MSF33000"></textarea></label>
       <label class="row" style="font-size:13px;color:var(--muted)"><input id="khAuto" type="checkbox">總張數與有效期限照上面自動帶入</label>
       <p class="hint" id="mSignedHint" hidden></p>
+      <button id="mSignedClear" type="button" style="align-self:flex-start" hidden>移除已載入的簽核檔</button>
       <button id="mSignedDl" class="primary" type="button" style="align-self:flex-start" hidden>下載已簽 PDF（含凱惠設定）</button>
       <button id="mRegister" type="button" style="align-self:flex-start">登記券號（之後可在「查詢券號」查到）</button>
       <p class="hint" id="mRegStatus">填好券別序號後會自動登記到「查詢券號」，按鈕可手動再登記一次。</p>
@@ -254,7 +258,7 @@ table.inbox tr.done td{opacity:.55}
       <button id="mLineCopy" type="button" style="align-self:flex-start">複製 LINE 訊息</button>
     </details>
   </div>
-  <div class="paperwrap"><article class="paper" id="paper" aria-label="美加申請書預覽"></article></div>
+  <div class="paperwrap"><article class="paper" id="paper" aria-label="美加申請書預覽"></article><div class="signedPrev" id="mSignedPrev" hidden></div></div>
 </main>
 
 <!-- ================= 康博 ================= -->
@@ -357,6 +361,7 @@ table.inbox tr.done td{opacity:.55}
       <label class="f">券別名稱（LINE 通知用）<input id="d_vName" type="text" placeholder="留空會用療程券單位"></label>
       <label class="f">券別內容（LINE 通知用）<input id="d_vContent" type="text" placeholder="留空會用常規內容"></label>
       <p class="hint" id="dSignedHint" hidden></p>
+      <button id="dSignedClear" type="button" style="align-self:flex-start" hidden>移除已載入的簽核檔</button>
       <button id="dSignedDl" class="primary" type="button" style="align-self:flex-start" hidden>下載已簽 PDF（含券別序號）</button>
       <button id="dRegister" type="button" style="align-self:flex-start">登記券號（之後可在「查詢券號」查到）</button>
       <p class="hint" id="dRegStatus">填好券別序號後會自動登記到「查詢券號」，按鈕可手動再登記一次。</p>
@@ -369,7 +374,7 @@ table.inbox tr.done td{opacity:.55}
       <button id="dLineCopy" type="button" style="align-self:flex-start">複製 LINE 訊息</button>
     </details>
   </div>
-  <div class="paperwrap"><article class="paper dc" id="dPaper" aria-label="康博簽呈預覽"></article></div>
+  <div class="paperwrap"><article class="paper dc" id="dPaper" aria-label="康博簽呈預覽"></article><div class="signedPrev" id="dSignedPrev" hidden></div></div>
 </main>
 
 <!-- ================= 查詢券號 ================= -->
@@ -1302,20 +1307,69 @@ function updateSignedUI(){
   [["meijia","mSignedDl","mSignedHint"],["dc","dSignedDl","dSignedHint"]].forEach(([f,b,hn])=>{
     const on = !!signed && signed.form===f;
     $(b).hidden=!on; $(hn).hidden=!on;
-    if(on) $(hn).textContent="已載入簽核檔：「"+signed.name+"」。填好後按下面的按鈕，會在原本的 PDF 上補上"+(f==="dc"?"券別序號":"凱惠系統設定")+"，主管簽名保留。"+(signed.pos?"":"（這份找不到表格位置，會另外加一頁）");
+    $(f==="dc"?"dSignedClear":"mSignedClear").hidden=!on;
+    if(on) $(hn).textContent="已載入簽核檔：「"+signed.name+"」（右邊預覽就是主管簽好的版本，關掉網頁再回來也還在）。填好後按「下載 PDF」或下面的按鈕，會在原本的 PDF 上補上"+(f==="dc"?"券別序號":"凱惠系統設定")+"，主管簽名保留，可以重複修改、重複下載。"+(signed.pos?"":"（這份找不到表格位置，會另外加一頁）");
   });
+  const cur=view();
+  $("pdfBtn").textContent = signed && signed.form===cur ? "下載 PDF（保留主管簽名）" : "下載 PDF";
+  scheduleSignedPreview(0);
+}
+// ---- 已簽檔記在瀏覽器裡（IndexedDB），重新整理或隔天再開都還在 ----
+function signedDB(){ return new Promise((ok,bad)=>{ const r=indexedDB.open("voucher-signed",1); r.onupgradeneeded=()=>r.result.createObjectStore("s"); r.onsuccess=()=>ok(r.result); r.onerror=()=>bad(r.error); }); }
+async function signedStore(val){
+  try{ const db=await signedDB(); await new Promise((ok,bad)=>{ const t=db.transaction("s","readwrite"); val ? t.objectStore("s").put({buf:val.buf, name:val.name, form:val.form, pos:val.pos}, "cur") : t.objectStore("s").delete("cur"); t.oncomplete=ok; t.onerror=()=>bad(t.error); }); }catch(e){ console.warn("signed store", e); }
+}
+async function signedRestore(){
+  try{ const db=await signedDB(); return await new Promise(ok=>{ const r=db.transaction("s").objectStore("s").get("cur"); r.onsuccess=()=>ok(r.result||null); r.onerror=()=>ok(null); }); }catch(e){ return null; }
+}
+// ---- 右邊預覽改顯示「已簽 PDF＋補上的內容」 ----
+let signedPrevTimer=null, signedPrevSeq=0;
+function scheduleSignedPreview(ms){ clearTimeout(signedPrevTimer); signedPrevTimer=setTimeout(renderSignedPreview, ms==null?500:ms); }
+async function renderSignedPreview(){
+  const seq=++signedPrevSeq;
+  [["meijia","paper","mSignedPrev"],["dc","dPaper","dSignedPrev"]].forEach(([f,p,b])=>{ const on=!!signed && signed.form===f; $(p).hidden=on; if(!on){ $(b).hidden=true; $(b).replaceChildren(); } });
+  if(!signed) return;
+  const box=$(signed.form==="dc"?"dSignedPrev":"mSignedPrev");
+  try{
+    const bytes=await buildSignedBytes();
+    if(seq!==signedPrevSeq) return;
+    if(!window.pdfjsLib){ await loadScript(PDFJS_URL); await loadScript(PDFJS_WORKER); window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER; }
+    const pd=await window.pdfjsLib.getDocument({data:bytes}).promise;
+    const canvases=[];
+    for(let i=1;i<=Math.min(pd.numPages,3);i++){
+      const pg=await pd.getPage(i); const vp=pg.getViewport({scale:2});
+      const cv=document.createElement("canvas"); cv.width=vp.width; cv.height=vp.height;
+      await pg.render({canvasContext:cv.getContext("2d"), viewport:vp}).promise; canvases.push(cv);
+    }
+    if(seq!==signedPrevSeq) return;
+    const tag=document.createElement("p"); tag.className="tag"; tag.textContent="這是主管簽好的「"+signed.name+"」，左邊改的"+(signed.form==="dc"?"券別序號":"凱惠設定")+"會即時補上去。";
+    box.replaceChildren(tag, ...canvases); box.hidden=false;
+  }catch(e){
+    console.warn("signed preview", e);
+    if(seq!==signedPrevSeq) return;
+    $(signed.form==="dc"?"dPaper":"paper").hidden=false; box.hidden=true;
+  }
 }
 async function exportSigned(){
   if(!signed) return;
+  const out = await buildSignedBytes();
+  // 有券別序號就順便登記到券號資料庫（失敗不影響下載）
+  if(CONFIG.scriptUrl) registerCurrent(signed.form, true).catch(e=>console.warn("register", e));
+  const outBlob = new Blob([out],{type:"application/pdf"});
+  await saveFile(signed.name.replace(/\.pdf$/i,"")+"_"+(signed.form==="dc"?"含券別序號":"含凱惠設定")+".pdf", outBlob);
+  autoClose(signed.form, outBlob).catch(e=>console.warn("close", e));
+}
+async function buildSignedBytes(){
   if(!window.PDFLib) await loadScript(PDFLIB_URL);
   const {PDFDocument, rgb, StandardFonts} = window.PDFLib;
   const doc = await PDFDocument.load(signed.buf.slice(0), {ignoreEncryption:true});
   const vals = hqValues(signed.form);
   const page = doc.getPages()[0];
   if(document.fonts?.ready) await document.fonts.ready;
-  // 取樣每格原本的底色（灰底列用灰色蓋，不會出現白塊）
-  const bg={};
-  if(signed.pos){
+  // 取樣每格原本的底色（灰底列用灰色蓋，不會出現白塊）；同一份只取樣一次
+  const bg = signed.bg || (signed.bg = {});
+  if(signed.pos && !signed.bgDone){
+    signed.bgDone = true;
     try{
       if(!window.pdfjsLib){ await loadScript(PDFJS_URL); await loadScript(PDFJS_WORKER); window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER; }
       const pd=await window.pdfjsLib.getDocument({data:new Uint8Array(signed.buf.slice(0))}).promise;
@@ -1350,13 +1404,14 @@ async function exportSigned(){
       np.drawImage(await doc.embedPng(line.bytes), {x:60, y:yy, width:Math.min(line.w, width-120), height:line.h*Math.min(1,(width-120)/line.w)}); yy-=28;
     }
   }
-  const out = await doc.save();
-  // 有券別序號就順便登記到券號資料庫（失敗不影響下載）
-  if(CONFIG.scriptUrl) registerCurrent(signed.form, true).catch(e=>console.warn("register", e));
-  const outBlob = new Blob([out],{type:"application/pdf"});
-  await saveFile(signed.name.replace(/\.pdf$/i,"")+"_"+(signed.form==="dc"?"含券別序號":"含凱惠設定")+".pdf", outBlob);
-  autoClose(signed.form, outBlob).catch(e=>console.warn("close", e));
+  return await doc.save();
 }
+["mSignedClear","dSignedClear"].forEach(id=>{ $(id).onclick=()=>{ signed=null; signedStore(null); updateSignedUI(); toast("已移除簽核檔，預覽回到一般表單"); }; });
+window.addEventListener("hashchange", ()=>{ if(signed) updateSignedUI(); });
+{ const _m=mRender, _d=dRender;   // 左邊一改，右邊的已簽預覽跟著更新
+  mRender=function(){ const r=_m.apply(this, arguments); if(signed && signed.form==="meijia") scheduleSignedPreview(); return r; };
+  dRender=function(){ const r=_d.apply(this, arguments); if(signed && signed.form==="dc") scheduleSignedPreview(); return r; }; }
+if(HQ) signedRestore().then(s=>{ if(s && s.buf && !signed){ signed={buf:s.buf, name:s.name, form:s.form, pos:s.pos||null}; updateSignedUI(); } });
 ["mSignedDl","dSignedDl"].forEach(id=>{ $(id).onclick=async()=>{ const b=$(id), old=b.textContent; b.disabled=true; b.textContent="產生中…"; try{ await exportSigned(); }catch(e){ loadMsg("產生 PDF 失敗", String(e?.message||e)); } finally{ b.disabled=false; b.textContent=old; } }; });
 
 async function pdfText(buf){
@@ -1487,7 +1542,7 @@ $("signedPdf").onchange=async e=>{
     loadMsg("已載入「"+String((obj.form==="dc"?(data.cUnit||data.subject):data.subject)||f.name)+"」",
       "表單已還原成當初填寫的內容。\n下方已打開「凱惠系統設定」和「LINE 開券後通知訊息」，填上券別序號後就能複製 LINE 訊息。");
   }catch(err){ loadMsg("讀取 PDF 失敗", String(err?.message||err)); }
-  finally{ btn.disabled=false; btn.textContent=old; updateSignedUI(); }
+  finally{ btn.disabled=false; btn.textContent=old; if(signed) signedStore(signed); updateSignedUI(); }
 };
 const blobToBase64 = blob => new Promise((ok,bad)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=bad; r.readAsDataURL(blob); });
 // 「送出給承辦人」目前不使用；要開啟就把下一行的 false 改成 true
@@ -1563,6 +1618,7 @@ async function autoClose(form, pdf){
 $("pdfBtn").onclick=async()=>{
   const btn=$("pdfBtn"); btn.disabled=true; const old=btn.textContent; btn.textContent="產生中…";
   try{
+    if(signed && signed.form===view()){ await exportSigned(); return; }   // 已載入簽核檔：下載保留主管簽名的版本
     const pdf = await makePdfBlob();
     await saveFile(baseName()+".pdf", pdf);
     autoNotify(pdf).catch(e=>console.warn("notify", e));
