@@ -557,17 +557,19 @@ function armClear(btnId, doClear){
 const STD_RULES = ["單一療程限使用一張票卷","票卷須於有效期限內使用，逾期無效","消費金額以VIP價計算，不得找零","優惠不得併行，手術優惠套組不得使用","不限本人使用，可轉讓，遺失數不補發","可於任一分店使用，無分店限制"];
 const M_EXAMPLE = {
   brand:"美加小總部", unit:"信富家", date:iso(today), applicant:"",
-  subject:"美加X高爾夫嘉年華好禮二選一_申請開卷", stPhysical:true, stLine:false, stOther:false, styleOther:"",
+  subject:"美加X高爾夫嘉年華好禮三選一_申請開卷", stPhysical:true, stLine:false, stOther:false, styleOther:"",
   qty:"1000", branches:"全台美加分院",
-  purpose:"針對品牌曝光率及新客來店數發放好禮二選一$990卷，提升新客到店率",
+  purpose:"針對品牌曝光率及新客來店數發放好禮三選一卷，提升新客到店率",
   rules:STD_RULES.join("\n"), source:"", ambassador:"", extra:"",
   deadlines:["2027-06-30"],
-  khName:"美加X高爾夫嘉年華990好禮二選一", khContent:"好禮二選一(A.12倍素顏光療一堂原價3000 B.全方位護膚一堂原價3500)", khSerial:"", khAuto:true,
-  gmPass:"", gmType:"", vType:"two990",
+  khName:"美加X高爾夫嘉年華好禮三選一", khContent:"好禮三選一(A.煥膚光療 B.保濕潤澤導入 C.針劑(美白/護肝擇一))", khSerial:"", khAuto:true,
+  gmPass:"", gmType:"", vType:"three",
   _example:true
 };
 const M_BLANK = {brand:"美加診所",unit:"",date:iso(today),applicant:"",subject:"",stPhysical:true,stLine:false,stOther:false,styleOther:"",qty:"",branches:"全台美加分院",
   purpose:"",rules:STD_RULES.join("\n"),source:"",ambassador:"",extra:"",deadlines:[""],khName:"",khContent:"",khSerial:"",khAuto:true,gmPass:"",gmType:"",vType:"custom",_example:false};
+// 新開的空白申請書：券種預設「好禮三選一」
+const M_NEW = () => Object.assign(structuredClone(M_BLANK), {vType:"three", khContent:"好禮三選一(A.煥膚光療 B.保濕潤澤導入 C.針劑(美白/護肝擇一))", deadlines:M_EXAMPLE.deadlines.slice()});
 // 常態券種
 const VTYPES = {
   three:  {content:"好禮三選一(A.煥膚光療 B.保濕潤澤導入 C.針劑(美白/護肝擇一))", subject:"好禮三選一", khName:"好禮三選一", purpose:"好禮三選一"},
@@ -664,7 +666,7 @@ $("unitSel").addEventListener("change",()=>{
 });
 $("unitOther").addEventListener("input",()=>{ S.unit=$("unitOther").value; S._example=false; mSave(); mRender(); });
 const M_FIELDS = ["date","applicant","subject","styleOther","qty","purpose","rules","source","ambassador","extra","khName","khContent","khSerial","stPhysical","stLine","stOther","khAuto"];
-let S = load("voucher-draft", Object.assign(structuredClone(M_BLANK), {deadlines:M_EXAMPLE.deadlines.slice()}));
+let S = load("voucher-draft", M_NEW());
 // 清掉之前誤把「AI 指令」貼回來時留下的欄位說明文字
 (function cleanPlaceholders(){
   const bad=/^(主旨|申請目的與預估目標|商品提示的(來源|大使).*|其他附註.*|券別名稱（.*|券別內容|申請單位（.*）)$/;
@@ -797,7 +799,7 @@ $("addDeadline").onclick=()=>{ S.deadlines.push(""); mSave(); mDeadlines(); };
 $("resetRules").onclick=()=>{ S.rules=STD_RULES.join("\n"); syncBranchRule(); mSave(); mRender(); };
 armClear("clearBtn", ()=>{ const keep={unit:S.unit,applicant:S.applicant,brand:S.brand};
   const dl=(S.deadlines||[]).map(fixIso).filter(isoOk);
-  S=Object.assign(structuredClone(M_BLANK), keep, {date:iso(new Date()), deadlines: dl.length?dl:M_EXAMPLE.deadlines.slice()});
+  S=Object.assign(M_NEW(), keep, {date:iso(new Date()), deadlines: dl.length?dl:M_EXAMPLE.deadlines.slice()});
   mSave(); mFill(); toast("已清空，左邊直接填；右邊灰字只是範例，不會印出來（品牌、單位、申請人、期限保留）"); });
 $("mLineCopy").onclick=()=>copyText(mLineText(),"已複製 LINE 訊息");
 function mPlain(){
