@@ -243,6 +243,7 @@ table.inbox tr.done td{opacity:.55}
       <p class="hint" id="mSignedHint" hidden></p>
       <button id="mSignedDl" class="primary" type="button" style="align-self:flex-start" hidden>下載已簽 PDF（含凱惠設定）</button>
       <button id="mRegister" type="button" style="align-self:flex-start">登記券號（之後可在「查詢券號」查到）</button>
+      <p class="hint" id="mRegStatus">填好券別序號後會自動登記到「查詢券號」，按鈕可手動再登記一次。</p>
     </details>
 
     <details class="card">
@@ -357,6 +358,7 @@ table.inbox tr.done td{opacity:.55}
       <p class="hint" id="dSignedHint" hidden></p>
       <button id="dSignedDl" class="primary" type="button" style="align-self:flex-start" hidden>下載已簽 PDF（含券別序號）</button>
       <button id="dRegister" type="button" style="align-self:flex-start">登記券號（之後可在「查詢券號」查到）</button>
+      <p class="hint" id="dRegStatus">填好券別序號後會自動登記到「查詢券號」，按鈕可手動再登記一次。</p>
     </details>
 
     <details class="card">
@@ -467,6 +469,8 @@ async function saveFile(name, blob){
   setTimeout(()=>URL.revokeObjectURL(url), 10000);
   toast("已下載 "+name);
 }
+// 名稱裡的「_申請開卷」不顯示（查詢、LINE、登記都用）
+const noApply = s => String(s||"").replace(/[_＿\s]*申請開[卷券]\s*$/,"").trim();
 const safeName = s => s.replace(/[\\/:*?"<>|\n]/g,"").slice(0,60);
 const AI_ERR = {cancelled:"已停止。",not_granted:"AI 擬稿還沒啟用（承辦人尚未設定金鑰），請先手動填表。",sampling_disabled:"這個帳號不能使用 AI，請直接手動填表。",rate_limited:"AI 使用太頻繁，請稍後再試。",invalid_json:"AI 回覆格式不對，請再按一次「AI 擬稿」。",refused:"AI 無法處理這段描述，請換個說法。"};
 function runAI({go, stop, out, briefEl, emptyMsg, prompt, apply}){
@@ -669,7 +673,7 @@ function khRows(){
   return [["券別名稱",S.khName],["總張數",S.khAuto&&S.qty?S.qty+"張":""],["券別內容",S.khContent],["券別序號",S.khSerial],["有效期限",S.khAuto?S.deadlines.filter(Boolean).map(dot).join("/"):""]];
 }
 function mLineText(){
-  return ["券別名稱："+(S.khName||S.subject.replace(/_申請開卷$/,"")),
+  return ["券別名稱："+noApply(S.khName||S.subject),
     "券別內容："+(S.khContent||""),
     "券號："+(S.khSerial||"（尚未取得）").replace(/\s*-\s*/,"~"),
     "數量："+(S.qty||"")+"張",
@@ -1043,7 +1047,7 @@ function renderSearch(results, q){
   results.forEach(r=>{
     const exp=rocToIso(r["有效期限"]); const expired = exp && exp < today;
     const head=h("div",{class:"row",style:"justify-content:space-between"},
-      h("strong",{style:"font-size:16px"}, r["券別名稱"]||r["主旨"]||"(未命名)"),
+      h("strong",{style:"font-size:16px"}, noApply(r["券別名稱"]||r["主旨"])||"(未命名)"),
       h("span",{class:"example",style: expired?"":"background:var(--line-soft);color:var(--ok)"}, expired?"已過期":"有效"));
     const grid=h("div",{class:"grid2"},
       sqField("券號範圍", r["券號範圍"]),
@@ -1051,7 +1055,7 @@ function renderSearch(results, q){
       sqField("來源", r["來源"]),
       sqField("大使", r["大使"]));
     const extra=h("div",{style:"display:flex;flex-direction:column;gap:6px"},
-      sqField("券別內容", r["券別內容"]), sqField("主旨", r["主旨"]),
+      sqField("券別內容", r["券別內容"]),
       h("span",{class:"hint"},"登記時間："+(r["登記時間"]||"")+(r["表單"]?"　表單："+r["表單"]:"")));
     box.append(h("article",{class:"card",style:"background:var(--field)"}, head, grid, extra));
   });
@@ -1068,16 +1072,50 @@ $("sqForm").addEventListener("submit", async e=>{
 function registerPayload(form){
   if(form==="dc") return {action:"register", form:"康博 事業處簽呈", serial:D.serial, name:D.vName||D.cUnit, content:D.vContent||(D.kind==="regular"?D.regular:D.pName),
     qty:D.qty?D.qty+"張":"", expiry:dot(D.expiry), source:"", ambassador:D.pBonus, unit:D.unit, brand:"康博", subject:D.subject};
-  return {action:"register", form:"美加 貴賓券申請書", serial:S.khSerial, name:S.khName||S.subject.replace(/_申請開卷$/,""), content:S.khContent,
+  return {action:"register", form:"美加 貴賓券申請書", serial:S.khSerial, name:noApply(S.khName||S.subject), content:S.khContent,
     qty:S.qty?S.qty+"張":"", expiry:S.deadlines.filter(Boolean).map(dot).join("/"), source:S.source, ambassador:S.ambassador, unit:S.unit, brand:S.brand, subject:S.subject};
 }
 async function registerCurrent(form, quiet){
   const p=registerPayload(form);
   if(!String(p.serial||"").trim()){ if(!quiet) loadMsg("還沒有券別序號","請先在券別序號填入例如 MGA13502-MGA13551，再按登記。"); return false; }
+  // 券別名稱和券別內容的「二選一／三選一」要一致
+  const kind = s => (String(s||"").match(/[二三]選一/)||[""])[0];
+  const kn=kind(p.name), kc=kind(p.content);
+  if(kn && kc && kn!==kc){
+    if(!quiet) loadMsg("券別名稱和內容不一致","券別名稱寫「"+kn+"」，券別內容卻寫「"+kc+"」。請先改成一致再登記，避免門店查到錯的內容。");
+    return false;
+  }
   const j=await callScript(p);
   toast("已登記 "+j.count+" 段券號，可在「查詢券號」查到");
   return true;
 }
+// 自動登記：承辦人填好（或修改）券別序號、名稱、內容、期限、來源、大使後，自動更新到查詢券號
+const SERIAL_RE = /[A-Za-z]+\s*\d+\s*[-~～－]\s*[A-Za-z]*\s*\d+/;
+const regTimers = {};
+function scheduleAutoRegister(form){
+  if(!HQ || !CONFIG.scriptUrl) return;
+  const serial = form==="dc" ? D.serial : S.khSerial;
+  if(!SERIAL_RE.test(String(serial||""))) return;
+  const st = $(form==="dc" ? "dRegStatus" : "mRegStatus");
+  clearTimeout(regTimers[form]);
+  st.textContent = "準備自動登記…";
+  regTimers[form] = setTimeout(async()=>{
+    st.textContent = "自動登記中…";
+    try{
+      const ok = await registerCurrent(form, true);
+      const t = new Date(); const hm = String(t.getHours()).padStart(2,"0")+":"+String(t.getMinutes()).padStart(2,"0");
+      st.textContent = ok ? "✓ "+hm+" 已自動登記，門店可以在「查詢券號」查到" : "未自動登記：請確認券別名稱和內容的「二選一／三選一」一致";
+    }catch(e){ st.textContent = "自動登記失敗："+(e?.message||e?.code||"請按上面的按鈕再試一次"); }
+  }, 1500);
+}
+$("viewM").addEventListener("change", e=>{
+  const id=e.target.id||"";
+  if(["khSerial","khName","khContent","source","ambassador","qty"].includes(id) || /^dl\d+$/.test(id) || e.target.name==="m_vType") scheduleAutoRegister("meijia");
+});
+$("viewD").addEventListener("change", e=>{
+  const id=e.target.id||"";
+  if(["d_serial","d_vName","d_vContent","d_expiry","d_qty","d_pBonus","d_regular"].includes(id)) scheduleAutoRegister("dc");
+});
 [["mRegister","meijia"],["dRegister","dc"]].forEach(([id,f])=>{ $(id).onclick=async()=>{ const b=$(id), old=b.textContent; b.disabled=true; b.textContent="登記中…"; try{ await registerCurrent(f); }catch(e){ loadMsg("登記失敗", String(e?.message||e?.code||e)); } finally{ b.disabled=false; b.textContent=old; } }; });
 window.addEventListener("hashchange", showView);
 $("copyBtn").onclick=()=>copyText(view()==="dc"? dPlain() : mPlain(), "已複製簽呈文字");
