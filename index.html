@@ -1123,7 +1123,8 @@ const GIFT_OPTIONS = {
 // 券的樣張圖（檔案放在網站根目錄）
 // 常用券的印製區間：同一批印的券長得都一樣，券號落在區間內就直接用這張券樣
 const STOCK_BATCHES = [
-  {prefix:"MSF", a:20001, b:22000, label:"信富家990固定用券（療程二選一）", src:"voucher-mj-990.jpg"},
+  // 信富家大使990 是另一款設計（跟百峯那張 990 不同）
+  {prefix:"MSF", a:20001, b:22000, label:"信富家大使專屬990好禮二選一", src:"voucher-xfj-990.jpg"},
   {prefix:"MSF", a:30001, b:32000, label:"婚展2026新券（信富家婚展發印）", src:"voucher-wedding-990.jpg"},
   {prefix:"MGA", a:13001, b:16000, label:"美加三選一券（發印3000張）", src:"voucher-mj-three.jpg"},
 ];
@@ -1137,7 +1138,7 @@ function voucherImage(r){
   const t = [r["券別名稱"], r["券別內容"], r["券號範圍"]].map(x=>String(x||"")).join(" ");
   const serial = String(r["券號範圍"]||"").toUpperCase();
   const sb = stockBatch(serial);
-  if (sb) return {src:sb.src, alt:sb.label+" 券樣"};
+  if (sb) return sb.src ? {src:sb.src, alt:sb.label+" 券樣"} : null;
   if (/增肌動磁波/.test(t)) return {src:"voucher-fbt-muscle.jpg", alt:"法布甜中秋刮刮樂 增肌動磁波 券樣"};
   if (/代謝循環艙/.test(t)) return {src:"voucher-fbt-cabin.jpg", alt:"法布甜中秋刮刮樂 代謝循環艙 券樣"};
   if (/商周|CEO/.test(t)) return {src:"voucher-ceo.jpg", alt:"美加醫美 商周CEO班企業參訪 券樣"};
@@ -1176,7 +1177,7 @@ function renderSearch(results, q){
     box.append(h("article",{class:"card",style:"background:var(--field)"},
       h("strong",{style:"font-size:16px"}, sb.label),
       sqField("印製區間", sb.prefix+sb.a+"-"+sb.prefix+sb.b),
-      h("figure",{style:"margin:0;display:flex;flex-direction:column;gap:4px"},
+      !sb.src ? null : h("figure",{style:"margin:0;display:flex;flex-direction:column;gap:4px"},
         h("span",{class:"lbl"},"券樣（正面）"),
         h("a",{href:sb.src,target:"_blank",rel:"noopener"},
           h("img",{src:sb.src,alt:sb.label+" 券樣",loading:"lazy",style:"display:block;max-width:100%;max-height:360px;border-radius:8px;border:1px solid var(--line)"})))));
