@@ -1065,6 +1065,7 @@ function voucherImage(r){
   if (/露營|^MGB1276[12]\b/.test(t) || /^MGB1276[12]/.test(serial)) return {src:"voucher-camp.jpg", alt:"美加醫美 頂級晶透水肌光 客製券樣"};
   if (/谷慕/.test(t)) return {src:"voucher-gumumu.jpg", alt:"谷慕慕×美加醫美 好禮二選一 券樣"};
   if (/泰晶殿週年慶/.test(t) || /^TGB/.test(serial)) return {src:"voucher-tjd-two.jpg", alt:"泰晶殿×美加 專案二選一 券樣"};
+  if (/婚展|婚博/.test(String(r["券別名稱"]||""))) return {src:"voucher-wedding-990.jpg", alt:"美加醫美 婚展 券樣"};   // 所有婚展一律用馬戲團券樣
   if (/三選一/.test(t) && !/1990|特殊/.test(t)) return {src:"voucher-mj-three.jpg", alt:"美加醫美 好禮三選一 券樣"};
   if (/^MSF3/.test(serial) && /990|二選一/.test(t)) return {src:"voucher-wedding-990.jpg", alt:"美加醫美 990 好禮二選一（婚展）券樣"};
   if (/百峯|小金井|一太衛浴/.test(t) || (/990/.test(t) && /二選一/.test(t) && !/特殊/.test(t))) return {src:"voucher-mj-990.jpg", alt:"美加醫美 990 好禮二選一 券樣"};
