@@ -1073,8 +1073,7 @@ function renderSearch(results, q){
       h("span",{class:"lbl"},"可選好禮（"+g.title+"，擇一）"),
       ...g.items.map(t=>h("span",{style:"font-weight:500"},t))) : null;
     const extra=h("div",{style:"display:flex;flex-direction:column;gap:6px"},
-      sqField("券別內容", r["券別內容"]), giftBox,
-      h("span",{class:"hint"},"登記時間："+(r["登記時間"]||"")));
+      sqField("券別內容", r["券別內容"]), giftBox);
     box.append(h("article",{class:"card",style:"background:var(--field)"}, head, grid, extra));
   });
 }
