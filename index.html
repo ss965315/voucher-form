@@ -1067,8 +1067,8 @@ function voucherImage(r){
   if (/增肌動磁波/.test(t)) return {src:"voucher-fbt-muscle.jpg", alt:"法布甜中秋刮刮樂 增肌動磁波 券樣"};
   if (/代謝循環艙/.test(t)) return {src:"voucher-fbt-cabin.jpg", alt:"法布甜中秋刮刮樂 代謝循環艙 券樣"};
   if (/商周|CEO/.test(t)) return {src:"voucher-ceo.jpg", alt:"美加醫美 商周CEO班企業參訪 券樣"};
-  // 大團露／露營車：MGB12761 是皮秒雷射（沒有券樣圖），MGB12762 才是晶透水肌光
-  if (/^MGB12761\b/.test(serial) || (/露營|大團露/.test(t) && /皮秒/.test(t))) return null;
+  // 大團露／露營車：MGB12761 是皮秒雷射，MGB12762 是晶透水肌光
+  if (/^MGB12761\b/.test(serial) || (/露營|大團露/.test(t) && /皮秒/.test(t))) return {src:"voucher-camp-pico.jpg", alt:"美加醫美 皮秒雷射 客製券樣"};
   if (/露營|大團露/.test(t) || /^MGB12762/.test(serial)) return {src:"voucher-camp.jpg", alt:"美加醫美 頂級晶透水肌光 客製券樣"};
   if (/谷慕/.test(t)) return {src:"voucher-gumumu.jpg", alt:"谷慕慕×美加醫美 好禮二選一 券樣"};
   if (/泰晶殿週年慶/.test(t) || /^TGB/.test(serial)) return {src:"voucher-tjd-two.jpg", alt:"泰晶殿×美加 專案二選一 券樣"};
