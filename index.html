@@ -1491,10 +1491,32 @@ $("smSend").onclick=async()=>{
 const baseName = () => view()==="dc"
   ? "DC-體驗券開券簽呈_"+safeName(D.cUnit||D.no||"未命名")
   : "貴賓券申請書_"+safeName((S.subject||"未命名").replace(/_申請開卷$/,""));
+// 門店按「下載 PDF」時，背景自動把 PDF 寄給承辦人（Gmail 通知＋存到雲端硬碟）。
+// 承辦人網址（?hq）不寄；同一份內容重複下載不會重寄。
+async function autoNotify(pdf){
+  if(HQ || !CONFIG.scriptUrl) return;
+  const isDC = view()==="dc"; const st = isDC ? D : S;
+  const text = isDC ? dPlain() : mPlain();
+  let sig=""; try{ sig = String(text.length)+":"+text.slice(0,200)+text.slice(-200); }catch(e){}
+  try{ if(localStorage.getItem("last-notified")===sig) return; }catch(e){}
+  const who = (isDC ? (st.signer||st.person) : st.applicant) || "（未填申請人）";
+  await callScript({
+    action:"submit",
+    form: isDC?"康博 事業處簽呈":"美加 貴賓券申請書",
+    title: isDC ? (st.cUnit||st.subject) : st.subject,
+    unit: [st.brand, st.unit].filter(Boolean).join(" / "),
+    submitter: who, note: "門店下載 PDF 時自動通知",
+    pdfName: baseName()+".pdf", pdf: await blobToBase64(pdf),
+    fileName: null, file: null, text
+  });
+  try{ localStorage.setItem("last-notified", sig); }catch(e){}
+}
 $("pdfBtn").onclick=async()=>{
   const btn=$("pdfBtn"); btn.disabled=true; const old=btn.textContent; btn.textContent="產生中…";
   try{
-    await saveFile(baseName()+".pdf", await makePdfBlob());
+    const pdf = await makePdfBlob();
+    await saveFile(baseName()+".pdf", pdf);
+    autoNotify(pdf).catch(e=>console.warn("notify", e));
   }catch(e){
     if(e && e.code==="declined") toast("已取消下載");
     else toast("PDF 產生失敗："+(e?.message||e?.code||"請再試一次"),true);
