@@ -1039,6 +1039,20 @@ function sqField(label, value, warn){
   return h("div",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},
     h("span",{class:"lbl"},label), h("span",{style:"font-weight:500"+(warn?";color:var(--seal)":"")}, value||"—"));
 }
+// 常態券的實際好禮內容（依實體券印的內容）
+const GIFT_OPTIONS = {
+  three: ["A. 煥膚光療", "B. 保濕潤澤導入", "C. 針劑（美白／護肝擇一）"],
+  two990: ["A. 12倍素顏光療一堂（原價 3000）", "B. 全方位護膚一堂（原價 3500）"],
+  hsinchu1990: ["A. 皮秒雷射 1 堂", "B. 肉毒 1 區", "C. 晶透水肌光深層潔淨養膚課程"]
+};
+function giftOptions(content){
+  const c = String(content||"");
+  if (/1990特殊三選一/.test(c)) return {title:"1990特殊三選一，限新竹光明", items:GIFT_OPTIONS.hsinchu1990};
+  if (/特殊/.test(c) || /A\s*[.．]/.test(c)) return null;          // 特殊券、或內容已列出項目
+  if (/三選一/.test(c)) return {title:"好禮三選一", items:GIFT_OPTIONS.three};
+  if (/二選一/.test(c)) return {title:"好禮二選一 $990", items:GIFT_OPTIONS.two990};
+  return null;
+}
 function renderSearch(results, q){
   const box=$("sqOut"); box.replaceChildren();
   if(!results.length){ $("sqMsg").textContent="找不到「"+q+"」。可能是這批券還沒登記到資料庫。"; return; }
@@ -1054,9 +1068,13 @@ function renderSearch(results, q){
       sqField("有效期限", r["有效期限"]+(expired?"（已過期）":""), expired),
       sqField("來源", r["來源"]),
       sqField("大使", r["大使"]));
+    const g=giftOptions(r["券別內容"]);
+    const giftBox = g ? h("div",{style:"border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel);display:flex;flex-direction:column;gap:4px"},
+      h("span",{class:"lbl"},"可選好禮（"+g.title+"，擇一）"),
+      ...g.items.map(t=>h("span",{style:"font-weight:500"},t))) : null;
     const extra=h("div",{style:"display:flex;flex-direction:column;gap:6px"},
-      sqField("券別內容", r["券別內容"]),
-      h("span",{class:"hint"},"登記時間："+(r["登記時間"]||"")+(r["表單"]?"　表單："+r["表單"]:"")));
+      sqField("券別內容", r["券別內容"]), giftBox,
+      h("span",{class:"hint"},"登記時間："+(r["登記時間"]||"")));
     box.append(h("article",{class:"card",style:"background:var(--field)"}, head, grid, extra));
   });
 }
