@@ -102,6 +102,8 @@ details.card summary{cursor:pointer;font-size:14px;color:var(--muted);font-weigh
 .paper .kh-t td{padding:8px 12px}
 .paper .foot{font-weight:700;margin-top:16px;font-size:14px}
 .paper .empty{color:#aaa}
+.paper .ghost{color:#b4b4b4}
+.capturing .ghost{visibility:hidden}
 .signedPrev{max-width:820px;margin:0 auto}
 .signedPrev .tag{font-size:13px;margin:0 0 8px;padding:6px 10px;border-radius:6px;background:#fff4d6;color:#6b4e00}
 .signedPrev canvas{display:block;width:100%;height:auto;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.15);margin-bottom:12px}
@@ -175,7 +177,7 @@ table.inbox tr.done td{opacity:.55}
     </section>
 
     <section class="card">
-      <div class="row" style="justify-content:space-between"><h2><b>1</b>基本資料</h2><span id="exTag" class="example" hidden>目前是範例內容</span><button id="clearBtn" type="button">重填（回到範例）</button></div>
+      <div class="row" style="justify-content:space-between"><h2><b>1</b>基本資料</h2><span id="exTag" class="example" hidden>右邊灰字是範例</span><button id="clearBtn" type="button">重填（清空）</button></div>
       <div class="grid3">
         <label class="f">申請品牌<select id="brand"></select></label>
         <label class="f">申請單位<select id="unitSel"></select></label>
@@ -539,14 +541,16 @@ function runAI({go, stop, out, briefEl, emptyMsg, prompt, apply}){
 }
 const str = v => typeof v==="string" ? v.trim() : (typeof v==="number" ? String(v) : "");
 const isoOk = v => /^\d{4}-\d{2}-\d{2}$/.test(v);
+// 不存在的日期（例如 11/31）改成那個月的最後一天，日期欄才顯示得出來
+const fixIso = v => { const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v||""); if(!m) return v; const last=new Date(+m[1],+m[2],0).getDate(); return +m[3]>last ? m[1]+"-"+m[2]+"-"+String(last).padStart(2,"0") : v; };
 function bindFields(state, ids, prefix, onChange){
   ids.forEach(f=>{ const el=$(prefix+f); el.addEventListener(el.type==="checkbox"?"change":"input", ()=>{ state()[f] = el.type==="checkbox"? el.checked : el.value; onChange(); }); });
 }
 function fillFields(state, ids, prefix){ ids.forEach(f=>{ const el=$(prefix+f); if(el.type==="checkbox") el.checked=!!state[f]; else el.value=state[f]??""; }); }
 function armClear(btnId, doClear){
-  let armed=false; const b=$(btnId);
-  b.onclick=()=>{ if(!armed){ armed=true; b.textContent="再按一次確認重填"; setTimeout(()=>{armed=false;b.textContent="重填（回到範例）";},3000); return; }
-    armed=false; b.textContent="重填（回到範例）"; doClear(); };
+  let armed=false; const b=$(btnId), label=b.textContent;
+  b.onclick=()=>{ if(!armed){ armed=true; b.textContent="再按一次確認重填"; setTimeout(()=>{armed=false;b.textContent=label;},3000); return; }
+    armed=false; b.textContent=label; doClear(); };
 }
 
 // ================= 美加 貴賓券申請書 =================
@@ -660,7 +664,7 @@ $("unitSel").addEventListener("change",()=>{
 });
 $("unitOther").addEventListener("input",()=>{ S.unit=$("unitOther").value; S._example=false; mSave(); mRender(); });
 const M_FIELDS = ["date","applicant","subject","styleOther","qty","purpose","rules","source","ambassador","extra","khName","khContent","khSerial","stPhysical","stLine","stOther","khAuto"];
-let S = load("voucher-draft", M_EXAMPLE);
+let S = load("voucher-draft", Object.assign(structuredClone(M_BLANK), {deadlines:M_EXAMPLE.deadlines.slice()}));
 // 清掉之前誤把「AI 指令」貼回來時留下的欄位說明文字
 (function cleanPlaceholders(){
   const bad=/^(主旨|申請目的與預估目標|商品提示的(來源|大使).*|其他附註.*|券別名稱（.*|券別內容|申請單位（.*）)$/;
@@ -732,6 +736,8 @@ function mLineText(){
     "期限："+S.deadlines.filter(Boolean).map(slash).join("、")].join("\n");
 }
 const val = v => v ? v : h("span",{class:"empty"},"　");
+// 左邊沒填的欄位，右邊預覽用灰字顯示範例（下載 PDF 時不會印出來）
+const gh = k => String(S[k]||"").trim() ? S[k] : h("span",{class:"ghost"}, M_EXAMPLE[k]);
 const linesEl = arr => h("div",{class:"lines"}, arr.map(x=>h("div",null,x)));
 function mRender(){
   const p = $("paper"); p.replaceChildren();
@@ -739,10 +745,10 @@ function mRender(){
   const t = h("table");
   t.append(
     h("tr",null,h("td",{class:"k"},"申請品牌"),h("td",null,val(S.brand)),h("td",{class:"k"},"申請單位"),h("td",{style:"text-align:center"},val(S.unit)),h("td",{class:"k"},"申請日期"),h("td",{style:"text-align:center"},val(dot(S.date)))),
-    h("tr",{class:"shade"},h("td",{class:"k"},"申請主旨"),h("td",{colspan:5},val(S.subject))),
+    h("tr",{class:"shade"},h("td",{class:"k"},"申請主旨"),h("td",{colspan:5},gh("subject"))),
     h("tr",null,h("td",{class:"k"},"樣式"),h("td",{colspan:5},styleText(S))),
-    h("tr",{class:"shade"},h("td",{class:"k",style:"height:56px"},"數量"),h("td",{style:"text-align:center"},(S.qty||"　　")+" 張"),h("td",{class:"k"},"可用分院",h("br"),"(美加/DC)"),h("td",{colspan:3},val(S.branches))),
-    h("tr",null,h("td",{class:"k",style:"height:80px"},"申請目的",h("br"),"與預估目標",h("br"),"(請詳述)"),h("td",{colspan:5,class:"top"},linesEl(S.purpose.split("\n")))),
+    h("tr",{class:"shade"},h("td",{class:"k",style:"height:56px"},"數量"),h("td",{style:"text-align:center"},gh("qty")," 張"),h("td",{class:"k"},"可用分院",h("br"),"(美加/DC)"),h("td",{colspan:3},val(S.branches))),
+    h("tr",null,h("td",{class:"k",style:"height:80px"},"申請目的",h("br"),"與預估目標",h("br"),"(請詳述)"),h("td",{colspan:5,class:"top"},S.purpose.trim()?linesEl(S.purpose.split("\n")):gh("purpose"))),
     h("tr",{class:"shade"},h("td",{class:"k"},"使用規則",h("br"),"(請詳述)"),h("td",{colspan:5,class:"top"},linesEl(ruleLines()))),
     h("tr",null,h("td",{class:"k"},"申請人簽名"),h("td",{colspan:5},val(S.applicant)))
   );
@@ -752,14 +758,16 @@ function mRender(){
   const sig = h("table",{class:"sig"}); sig.append(h("tr",null,h("th",{style:"width:33%"},"品牌總經理簽名"),h("th",null,"品牌總經理備註")),h("tr",null,h("td"),h("td")));
   p.append(sig, h("hr"), h("p",{class:"note"},"*以下由總部專案人員填寫"), h("div",{class:"kh"},"凱惠系統設定資料"));
   const KH_KEYS=["khName","khTotal","khContent","khSerial","khExpiry"];
-  const kt = h("table",{class:"kh-t"}); khRows().forEach(([k,v],i)=>kt.append(h("tr",i%2?{class:"shade"}:null,h("td",{class:"k"},k),h("td",{"data-hq":KH_KEYS[i]},v?linesEl(v.split("\n")):val("")))));
+  const KH_GHOST={khName:M_EXAMPLE.khName, khTotal:M_EXAMPLE.qty+"張", khContent:M_EXAMPLE.khContent};
+  const kt = h("table",{class:"kh-t"}); khRows().forEach(([k,v],i)=>kt.append(h("tr",i%2?{class:"shade"}:null,h("td",{class:"k"},k),h("td",{"data-hq":KH_KEYS[i]},v?linesEl(v.split("\n")):(KH_GHOST[KH_KEYS[i]]?h("span",{class:"ghost"},KH_GHOST[KH_KEYS[i]]):val(""))))));
+  $("exTag").hidden = !["subject","qty","purpose","khName","khContent"].some(k=>!String(S[k]||"").trim());
   p.append(kt, h("p",{class:"foot"},"※本申請書審核通過後由會計部留存並通知申請單位與公告單位進行公告佈達。"));
-  $("exTag").hidden = !S._example;
   $("mLine").textContent = mLineText();
 }
 function mDeadlines(){
   const box = $("deadlines"); box.replaceChildren();
   if (!S.deadlines.length) S.deadlines=[""];
+  S.deadlines = S.deadlines.map(fixIso);
   S.deadlines.forEach((v,i)=>{
     const inp = h("input",{type:"date",id:"dl"+i,"aria-label":"期限"+(i+1)}); inp.value=v;
     inp.addEventListener("input",()=>{ S.deadlines[i]=inp.value; S._example=false; mSave(); mRender(); });
@@ -787,7 +795,10 @@ $("vCustom").addEventListener("input",()=>{ S.khContent=$("vCustom").value; if($
 bindFields(()=>S, M_FIELDS, "", ()=>{ S._example=false; mSave(); mRender(); });
 $("addDeadline").onclick=()=>{ S.deadlines.push(""); mSave(); mDeadlines(); };
 $("resetRules").onclick=()=>{ S.rules=STD_RULES.join("\n"); syncBranchRule(); mSave(); mRender(); };
-armClear("clearBtn", ()=>{ const keep={unit:S.unit,applicant:S.applicant,brand:S.brand}; S=Object.assign(structuredClone(M_EXAMPLE), keep, {date:iso(new Date())}); mSave(); mFill(); toast("已回到範例內容，改成這次的活動就好（品牌、單位、申請人保留）"); });
+armClear("clearBtn", ()=>{ const keep={unit:S.unit,applicant:S.applicant,brand:S.brand};
+  const dl=(S.deadlines||[]).map(fixIso).filter(isoOk);
+  S=Object.assign(structuredClone(M_BLANK), keep, {date:iso(new Date()), deadlines: dl.length?dl:M_EXAMPLE.deadlines.slice()});
+  mSave(); mFill(); toast("已清空，左邊直接填；右邊灰字只是範例，不會印出來（品牌、單位、申請人、期限保留）"); });
 $("mLineCopy").onclick=()=>copyText(mLineText(),"已複製 LINE 訊息");
 function mPlain(){
   const L=["貴賓券申請書","申請品牌："+S.brand+"　申請單位："+S.unit+"　申請日期："+dot(S.date),"申請主旨："+S.subject,"樣式："+styleText(S),
@@ -870,7 +881,7 @@ ${brief}
     // 來源、大使不自動帶入，讓申請人自己選
     ["subject","branches","purpose","extra","khName","khContent","unit"].forEach(k=>{ const v=str(r[k]); if(v) S[k]=v; });
     const q=str(r.qty).replace(/[^\d]/g,""); if(q) S.qty=q;
-    if(Array.isArray(r.deadlines)){ const d=r.deadlines.map(str).filter(isoOk); if(d.length) S.deadlines=d; }
+    if(Array.isArray(r.deadlines)){ const d=r.deadlines.map(str).map(fixIso).filter(isoOk); if(d.length) S.deadlines=d; }
     S.branchSel=parseBranches(S.branches);
     const vt=str(r.vType); if(VTYPES[vt]) applyVType(vt); else if(vt==="custom") S.vType="custom";
     S.khAuto=true; S._example=false; mSave(); mFill(); return str(r.check);
