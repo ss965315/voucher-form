@@ -1052,10 +1052,22 @@ const GIFT_OPTIONS = {
   two990: ["A. 12倍素顏光療一堂（原價 3000）", "B. 全方位護膚一堂（原價 3500）"],
   hsinchu1990: ["A. 皮秒雷射 1 堂", "B. 肉毒 1 區", "C. 晶透水肌光深層潔淨養膚課程"],
   gumumu: ["A. 奈秒雷射（$3500）", "B. AMP術後專用修護課程（$3200）"],
-  skin990: ["A. 奈秒雷射 1 堂", "B. FA極緻臉部保養課程 1 堂"]
+  skin990: ["A. 奈秒雷射 1 堂", "B. FA極緻臉部保養課程 1 堂"],
+  taijing: ["A. 頂級晶透水肌光（價值 6,000）", "B. 煥膚光療（價值 3,500）"]
 };
+// 券的樣張圖（檔案放在網站根目錄）
+function voucherImage(r){
+  const t = [r["券別名稱"], r["券別內容"], r["券號範圍"]].map(x=>String(x||"")).join(" ");
+  if (/增肌動磁波/.test(t)) return {src:"voucher-fbt-muscle.jpg", alt:"法布甜中秋刮刮樂 增肌動磁波 券樣"};
+  if (/代謝循環艙/.test(t)) return {src:"voucher-fbt-cabin.jpg", alt:"法布甜中秋刮刮樂 代謝循環艙 券樣"};
+  if (/泰晶殿週年慶|^TGB|\sTGB/.test(t)) return {src:"voucher-tjd-two.jpg", alt:"泰晶殿×美加 專案二選一 券樣"};
+  if (/三選一/.test(t) && !/1990|特殊/.test(t)) return {src:"voucher-mj-three.jpg", alt:"美加醫美 好禮三選一 券樣"};
+  if (/990/.test(t) && /二選一/.test(t) && !/淨膚|護膚|谷慕|特殊|泰晶殿/.test(t)) return {src:"voucher-mj-990.jpg", alt:"美加醫美 990 好禮二選一（大使專用）券樣"};
+  return null;
+}
 function giftOptions(content, name){
   const c = String(content||"");
+  if (/泰晶殿週年慶/.test(String(name||"")) || /特殊二選一/.test(c) && /泰晶殿/.test(String(name||""))) return {title:"專案二選一，泰晶殿×美加", items:GIFT_OPTIONS.taijing};
   if (/谷慕慕|谷慕幕/.test(c + " " + String(name||""))) return {title:"好禮二選一，谷慕慕異業合作", items:GIFT_OPTIONS.gumumu};
   if (/990\s*[（(]\s*淨膚\s*[\/／]\s*護膚/.test(c)) return {title:"$990 淨膚／護膚二選一", items:GIFT_OPTIONS.skin990};
   if (/1990特殊三選一/.test(c)) return {title:"1990特殊三選一，限新竹光明", items:GIFT_OPTIONS.hsinchu1990};
@@ -1083,9 +1095,19 @@ function renderSearch(results, q){
     const giftBox = g ? h("div",{style:"border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel);display:flex;flex-direction:column;gap:4px"},
       h("span",{class:"lbl"},"可選好禮（"+g.title+"，擇一）"),
       ...g.items.map(t=>h("span",{style:"font-weight:500"},t))) : null;
+    const vi=voucherImage(r);
+    const imgBox = vi ? h("figure",{style:"margin:0;display:flex;flex-direction:column;gap:4px", "data-vimg":vi.src},
+      h("span",{class:"lbl"},"券樣（正面）"),
+      h("a",{href:vi.src,target:"_blank",rel:"noopener"},
+        h("img",{src:vi.src,alt:vi.alt,loading:"lazy",style:"display:block;max-width:100%;max-height:360px;border-radius:8px;border:1px solid var(--line)"}))) : null;
     const extra=h("div",{style:"display:flex;flex-direction:column;gap:6px"},
-      sqField("券別內容", r["券別內容"]), giftBox);
+      sqField("券別內容", r["券別內容"]), giftBox, imgBox);
     box.append(h("article",{class:"card",style:"background:var(--field)"}, head, grid, extra));
+  });
+  // 還沒上傳的券樣圖就整塊不顯示
+  box.querySelectorAll("figure[data-vimg] img").forEach(img=>{
+    const drop=()=>img.closest("figure")?.remove();
+    if(img.complete && !img.naturalWidth) drop(); else img.addEventListener("error", drop);
   });
 }
 $("sqForm").addEventListener("submit", async e=>{
