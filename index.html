@@ -1507,7 +1507,7 @@ async function autoNotify(pdf){
     unit: [st.brand, st.unit].filter(Boolean).join(" / "),
     submitter: who, note: "門店下載 PDF 時自動通知",
     pdfName: baseName()+".pdf", pdf: await blobToBase64(pdf),
-    fileName: null, file: null, text
+    fileName: null, file: null
   });
   try{ localStorage.setItem("last-notified", sig); }catch(e){}
 }
