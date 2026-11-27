@@ -177,6 +177,7 @@ table.inbox tr.done td{opacity:.55}
           <label><input type="radio" name="m_vType" value="two990">好禮二選一 $990</label>
           <label><input type="radio" name="m_vType" value="custom">其他（自訂內容）</label>
         </div>
+        <input id="vCustom" type="text" placeholder="請輸入券別內容，例：好禮二選一(A.皮秒雷射1堂 B.肉毒1區)" aria-label="自訂券別內容" hidden>
         <p class="hint" id="vTypeHint"></p>
       </div>
       <label class="f">申請主旨<input id="subject" type="text" placeholder="活動名稱＋好禮內容_申請開卷"></label>
@@ -409,7 +410,7 @@ table.inbox tr.done td{opacity:.55}
 <datalist id="unitList"><option value="信富家"><option value="數創部"><option value="好的行銷"></datalist>
 <datalist id="branchList"><option value="全台美加分院"><option value="全台DC分院"><option value="全台美加、DC分院"></datalist>
 <datalist id="applicantList"></datalist>
-<datalist id="sourceList"><option value="線下通路活動"><option value="專案活動"><option value="股東介紹(含股東)"><option value="(信富家)代言大使本人"><option value="(信富家)代言大使介紹"><option value="TM介紹(含同仁)"><option value="法布甜介紹(含同仁)"><option value="集團資源"></datalist>
+<datalist id="sourceList"><option value="線下通路活動"><option value="專案活動"><option value="股東介紹(含股東)"><option value="(信富家)代言大使本人"><option value="(信富家)代言大使介紹"><option value="TM介紹(含同仁)"><option value="法布甜介紹(含同仁)"><option value="集團資源"><option value="在地化經營-店內大使"><option value="在地化經營-商圈異業結盟"><option value="在地化經營-在地鄰里社群"></datalist>
 <datalist id="ambassadorList"><option value="信富家異業合作"><option value="專案好的行銷"></datalist>
 <datalist id="dcRegularList"><option value="好友分享券-全方位寶肝課程*1堂"><option value="DC頂級3合1券(寶肝活力點滴課程1堂＋身體老化指數檢測1堂＋高階血管風險檢測1堂)"><option value="保肝針*1堂"></datalist>
 
@@ -548,7 +549,7 @@ const M_EXAMPLE = {
   gmPass:"", gmType:"", vType:"two990",
   _example:true
 };
-const M_BLANK = {brand:"美加",unit:"",date:iso(today),applicant:"",subject:"",stPhysical:true,stLine:false,stOther:false,styleOther:"",qty:"",branches:"全台美加分院",
+const M_BLANK = {brand:"美加診所",unit:"",date:iso(today),applicant:"",subject:"",stPhysical:true,stLine:false,stOther:false,styleOther:"",qty:"",branches:"全台美加分院",
   purpose:"",rules:STD_RULES.join("\n"),source:"",ambassador:"",extra:"",deadlines:[""],khName:"",khContent:"",khSerial:"",khAuto:true,gmPass:"",gmType:"",vType:"custom",_example:false};
 // 常態券種
 const VTYPES = {
@@ -602,7 +603,7 @@ function syncBranchRule(){
 function gmMarks(){ const b=on=>on?"■":"□"; return [b(S.gmPass==="pass"), b(S.gmPass==="fail"), b(S.gmType==="generic"), b(S.gmType==="custom")]; }
 // 申請品牌 → 可選的申請單位
 const BRAND_UNITS = {
-  "美加":["台中向上","台北仁愛","桃園中正","新竹光明","台中崇德","高雄巨蛋"],
+  "美加診所":["台中向上","台北仁愛","桃園中正","新竹光明","台中崇德","高雄巨蛋"],
   "美加小總部":["好的行銷","信富家","美加小總部"],
   "康博小總部":["康博小總部"],
   "總部":["公共事務部","數位部"],
@@ -721,10 +722,16 @@ function mFill(){
   if(!S.branchSel) S.branchSel=parseBranches(S.branches);
   setBranches(S.branchSel); buildBranchPick();
   ["gmPass","gmType","vType"].forEach(k=>document.querySelectorAll(`input[name="m_${k}"]`).forEach(r=>r.checked = r.value===(S[k]??"")));
-  $("vTypeHint").textContent = VTYPES[S.vType] ? "券別內容：" + VTYPES[S.vType].content : "請在「凱惠系統設定資料」填寫券別內容。";
+  const custom = !VTYPES[S.vType];
+  $("vCustom").hidden = !custom; $("vCustom").value = custom ? (S.khContent||"") : "";
+  $("vTypeHint").textContent = custom ? "" : "券別內容：" + VTYPES[S.vType].content;
   mRender();
 }
-document.querySelectorAll('input[name="m_vType"]').forEach(r=>r.addEventListener("change",()=>{ if(r.checked){ applyVType(r.value); S._example=false; mSave(); mFill(); } }));
+document.querySelectorAll('input[name="m_vType"]').forEach(r=>r.addEventListener("change",()=>{ if(r.checked){
+  // 從常態券種切到「其他」：清掉原本帶入的固定內容，讓門店自己填
+  if(!VTYPES[r.value] && Object.values(VTYPES).some(v=>v.content===S.khContent)) S.khContent="";
+  applyVType(r.value); S._example=false; mSave(); mFill(); if(!VTYPES[r.value]) $("vCustom").focus(); } }));
+$("vCustom").addEventListener("input",()=>{ S.khContent=$("vCustom").value; if($("khContent")) $("khContent").value=S.khContent; S._example=false; mSave(); mRender(); scheduleAutoRegister && HQ && scheduleAutoRegister("meijia"); });
 ["gmPass","gmType"].forEach(k=>document.querySelectorAll(`input[name="m_${k}"]`).forEach(r=>r.addEventListener("change",()=>{ if(r.checked){ S[k]=r.value; S._example=false; mSave(); mRender(); } })));
 bindFields(()=>S, M_FIELDS, "", ()=>{ S._example=false; mSave(); mRender(); });
 $("addDeadline").onclick=()=>{ S.deadlines.push(""); mSave(); mDeadlines(); };
