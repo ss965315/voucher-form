@@ -67,6 +67,14 @@ textarea{resize:vertical;line-height:1.55}
 .checks label{display:flex;gap:6px;align-items:center;color:var(--ink)}
 .lbl{font-size:13px;color:var(--muted)}
 .hint{font-size:12px;color:var(--muted);margin:0}
+.combo{position:relative;display:block}
+.combo input{padding-right:34px}
+.comboBtn{position:absolute;right:3px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--muted);padding:4px 8px;font-size:12px;cursor:pointer;min-height:0}
+.comboMenu{position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:30;background:var(--field);border:1px solid var(--line);border-radius:8px;
+  box-shadow:0 6px 18px rgba(0,0,0,.18);max-height:260px;overflow:auto;padding:4px 0}
+.comboMenu button{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--ink);padding:7px 12px;font:inherit;font-size:14px;border-radius:0;cursor:pointer}
+.comboMenu button:hover,.comboMenu button:focus{background:rgba(127,127,127,.15);outline:none}
+.comboMenu button.cur{font-weight:700}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .dl{display:flex;gap:6px;align-items:center}
 .dl button{padding:4px 10px}
@@ -211,8 +219,8 @@ table.inbox tr.done td{opacity:.55}
       <label class="f">固定規則（每行一條）<textarea id="rules" rows="6"></textarea></label>
       <button id="resetRules" type="button" style="align-self:flex-start">還原成標準 6 條</button>
       <div class="grid2">
-        <label class="f">商品提示：來源（點一下可選，也可自己打）<input id="source" type="text" list="sourceList" placeholder="不清楚可留空"></label>
-        <label class="f">商品提示：大使（點一下可選，也可自己打）<input id="ambassador" type="text" list="ambassadorList" placeholder="不清楚可留空"></label>
+        <label class="f">商品提示：來源（按 ▼ 選，也可自己打）<span class="combo"><input id="source" type="text" placeholder="不清楚可留空" autocomplete="off"><button type="button" class="comboBtn" data-for="source" data-list="sourceList" aria-label="選擇來源">▼</button></span></label>
+        <label class="f">商品提示：大使（按 ▼ 選，也可自己打）<span class="combo"><input id="ambassador" type="text" placeholder="例：廖尹安ComeProDG083" autocomplete="off"><button type="button" class="comboBtn" data-for="ambassador" data-list="ambassadorList" aria-label="選擇大使">▼</button></span><small class="hint" style="margin:0">大使請寫「姓名＋編號」，例：廖尹安ComeProDG083（會自動整理格式）</small></label>
       </div>
       <label class="f">其他附註（每行一條，選填）<textarea id="extra" rows="2" placeholder="例：HC編號TW02809196/林朝陽"></textarea></label>
       <div style="display:flex;flex-direction:column;gap:6px">
@@ -661,10 +669,44 @@ let S = load("voucher-draft", M_EXAMPLE);
   if(dirty) try{ localStorage.setItem("voucher-draft", JSON.stringify(S)); }catch(e){}
 })();
 const mSave = ()=>store("voucher-draft", S);
+// 大使固定格式：姓名＋編號（例：廖尹安ComeProDG083），中間不留空白或符號
+// 編號大小寫照打的保留（ComePro 有大小寫）；整串都打成小寫時才轉大寫（mgba064 → MGBA064）
+function ambFmt(v){
+  const s=String(v||"").trim(); if(!s) return "";
+  const sep="[\\s/\\\\\\-_—–,，、:：()（）|｜.。]*";
+  const code=c=>{ c=c.replace(/\s+/g,""); return c===c.toLowerCase() ? c.toUpperCase() : c; };
+  let m=s.match(new RegExp("^([\\u3400-\\u9fff·．]+)"+sep+"([A-Za-z]+\\s*\\d+)"+sep+"$"));
+  if(m) return m[1]+code(m[2]);
+  m=s.match(new RegExp("^([A-Za-z]+\\s*\\d+)"+sep+"([\\u3400-\\u9fff·．]+)"+sep+"$"));
+  if(m) return m[2]+code(m[1]);
+  return s;
+}
+$("ambassador").addEventListener("change",()=>{ const f=ambFmt($("ambassador").value); if(f!==$("ambassador").value){ $("ambassador").value=f; $("ambassador").dispatchEvent(new Event("input",{bubbles:true})); } });
+// 「▼」下拉：不管欄位裡已經有什麼，都列出全部選項（瀏覽器內建的 datalist 有字時會被過濾掉）
+document.querySelectorAll(".comboBtn").forEach(btn=>{
+  const inp=$(btn.dataset.for), box=btn.parentElement;
+  const close=()=>{ const m=box.querySelector(".comboMenu"); if(m) m.remove(); };
+  btn.addEventListener("click",e=>{
+    e.preventDefault(); e.stopPropagation();
+    if(box.querySelector(".comboMenu")){ close(); return; }
+    document.querySelectorAll(".comboMenu").forEach(m=>m.remove());
+    const menu=document.createElement("div"); menu.className="comboMenu"; menu.setAttribute("role","listbox");
+    [...document.querySelectorAll("#"+btn.dataset.list+" option")].map(o=>o.value).forEach(v=>{
+      const b=document.createElement("button"); b.type="button"; b.textContent=v; if(v===inp.value) b.className="cur";
+      b.addEventListener("click",ev=>{ ev.preventDefault(); ev.stopPropagation(); inp.value=v; inp.dispatchEvent(new Event("input",{bubbles:true})); inp.dispatchEvent(new Event("change",{bubbles:true})); close(); inp.focus(); });
+      menu.append(b);
+    });
+    const clr=document.createElement("button"); clr.type="button"; clr.textContent="（清空）"; clr.style.color="var(--muted)";
+    clr.addEventListener("click",ev=>{ ev.preventDefault(); ev.stopPropagation(); inp.value=""; inp.dispatchEvent(new Event("input",{bubbles:true})); close(); inp.focus(); });
+    menu.append(clr); box.append(menu);
+  });
+  inp.addEventListener("keydown",e=>{ if(e.key==="Escape") close(); });
+});
+document.addEventListener("click",e=>{ if(!e.target.closest(".combo")) document.querySelectorAll(".comboMenu").forEach(m=>m.remove()); });
 
 function ruleLines(){
   const L = S.rules.split("\n").map(s=>s.trim()).filter(Boolean);
-  { const parts=[]; const src=String(S.source||"").trim(), amb=String(S.ambassador||"").trim();
+  { const parts=[]; const src=String(S.source||"").trim(), amb=ambFmt(S.ambassador);
     if(src) parts.push("來源:"+src); if(amb) parts.push("大使:"+amb);
     if(parts.length) L.push("商品提示:"+parts.join("，")); }
   S.extra.split("\n").map(s=>s.trim()).filter(Boolean).forEach(x=>L.push(x));
@@ -1070,6 +1112,8 @@ function voucherImage(r){
   // 大團露／露營車：MGB12761 是皮秒雷射，MGB12762 是晶透水肌光
   if (/^MGB12761\b/.test(serial) || (/露營|大團露/.test(t) && /皮秒/.test(t))) return {src:"voucher-camp-pico.jpg", alt:"美加醫美 皮秒雷射 客製券樣"};
   if (/露營|大團露/.test(t) || /^MGB12762/.test(serial)) return {src:"voucher-camp.jpg", alt:"美加醫美 頂級晶透水肌光 客製券樣"};
+  // 高爾夫球展場券（MSF32001-33000）是另外印的券，跟婚展馬戲團券不同；還沒有券樣圖
+  if (/高爾夫/.test(t)) return null;
   if (/谷慕/.test(t)) return {src:"voucher-gumumu.jpg", alt:"谷慕慕×美加醫美 好禮二選一 券樣"};
   if (/泰晶殿週年慶/.test(t) || /^TGB/.test(serial)) return {src:"voucher-tjd-two.jpg", alt:"泰晶殿×美加 專案二選一 券樣"};
   if (/婚展|婚博/.test(String(r["券別名稱"]||""))) return {src:"voucher-wedding-990.jpg", alt:"美加醫美 婚展 券樣"};   // 所有婚展一律用馬戲團券樣
@@ -1138,7 +1182,7 @@ function registerPayload(form){
   if(form==="dc") return {action:"register", form:"康博 事業處簽呈", serial:D.serial, name:D.vName||D.cUnit, content:D.vContent||(D.kind==="regular"?D.regular:D.pName),
     qty:D.qty?D.qty+"張":"", expiry:dot(D.expiry), source:"", ambassador:D.pBonus, unit:D.unit, brand:"康博", subject:D.subject};
   return {action:"register", form:"美加 貴賓券申請書", serial:S.khSerial, name:noApply(S.khName||S.subject), content:S.khContent,
-    qty:S.qty?S.qty+"張":"", expiry:S.deadlines.filter(Boolean).map(dot).join("/"), source:S.source, ambassador:S.ambassador, unit:S.unit, brand:S.brand, subject:S.subject};
+    qty:S.qty?S.qty+"張":"", expiry:S.deadlines.filter(Boolean).map(dot).join("/"), source:S.source, ambassador:ambFmt(S.ambassador), unit:S.unit, brand:S.brand, subject:S.subject};
 }
 async function registerCurrent(form, quiet){
   const p=registerPayload(form);
